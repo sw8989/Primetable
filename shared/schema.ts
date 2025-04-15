@@ -48,6 +48,15 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).pick({
   platformId: true,
 });
 
+// Agent log entry type
+export const AgentLogEntrySchema = z.object({
+  timestamp: z.date(),
+  action: z.string(),
+  details: z.string()
+});
+
+export type AgentLogEntry = z.infer<typeof AgentLogEntrySchema>;
+
 // Booking schema
 export const bookings = pgTable("bookings", {
   id: serial("id").primaryKey(),
@@ -59,7 +68,7 @@ export const bookings = pgTable("bookings", {
   status: text("status").notNull(), // pending, confirmed, cancelled, completed
   platformBookingId: text("platform_booking_id"),
   agentStatus: text("agent_status").notNull(), // active, success, failed
-  agentLog: jsonb("agent_log"),
+  agentLog: jsonb("agent_log").$type<AgentLogEntry[]>().default([]),
   confirmed: boolean("confirmed").default(false),
   priorityBooking: boolean("priority_booking").default(false),
   acceptSimilarTimes: boolean("accept_similar_times").default(false),
