@@ -4,6 +4,8 @@ import {
   bookings, Booking, InsertBooking,
   favorites, Favorite, InsertFavorite
 } from "@shared/schema";
+import { db } from "./db";
+import { eq, or, sql, inArray, and } from "drizzle-orm";
 
 export interface IStorage {
   // User operations
@@ -337,4 +339,405 @@ export class MemStorage implements IStorage {
   }
 }
 
-export const storage = new MemStorage();
+export class DatabaseStorage implements IStorage {
+  // User methods
+  async getUser(id: number): Promise<User | undefined> {
+    try {
+      const [user] = await db.select().from(users).where(eq(users.id, id));
+      return user;
+    } catch (error) {
+      console.error("Error getting user:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByUsername(username: string): Promise<User | undefined> {
+    try {
+      const [user] = await db.select().from(users).where(eq(users.username, username));
+      return user;
+    } catch (error) {
+      console.error("Error getting user by username:", error);
+      return undefined;
+    }
+  }
+
+  async getUserByEmail(email: string): Promise<User | undefined> {
+    try {
+      const [user] = await db.select().from(users).where(eq(users.email, email));
+      return user;
+    } catch (error) {
+      console.error("Error getting user by email:", error);
+      return undefined;
+    }
+  }
+
+  async createUser(insertUser: InsertUser): Promise<User> {
+    try {
+      const [user] = await db.insert(users).values(insertUser).returning();
+      return user;
+    } catch (error) {
+      console.error("Error creating user:", error);
+      throw error;
+    }
+  }
+
+  async updateUser(id: number, userData: Partial<InsertUser>): Promise<User | undefined> {
+    try {
+      const [updatedUser] = await db
+        .update(users)
+        .set(userData)
+        .where(eq(users.id, id))
+        .returning();
+      return updatedUser;
+    } catch (error) {
+      console.error("Error updating user:", error);
+      return undefined;
+    }
+  }
+
+  // Restaurant methods
+  async getRestaurant(id: number): Promise<Restaurant | undefined> {
+    try {
+      const [restaurant] = await db.select().from(restaurants).where(eq(restaurants.id, id));
+      return restaurant;
+    } catch (error) {
+      console.error("Error getting restaurant:", error);
+      return undefined;
+    }
+  }
+
+  async getRestaurantByName(name: string): Promise<Restaurant | undefined> {
+    try {
+      const [restaurant] = await db
+        .select()
+        .from(restaurants)
+        .where(sql`LOWER(${restaurants.name}) = LOWER(${name})`);
+      return restaurant;
+    } catch (error) {
+      console.error("Error getting restaurant by name:", error);
+      return undefined;
+    }
+  }
+
+  async getRestaurants(): Promise<Restaurant[]> {
+    try {
+      return await db.select().from(restaurants);
+    } catch (error) {
+      console.error("Error getting restaurants:", error);
+      return [];
+    }
+  }
+
+  async getRestaurantsByCuisine(cuisine: string): Promise<Restaurant[]> {
+    try {
+      return await db
+        .select()
+        .from(restaurants)
+        .where(sql`LOWER(${restaurants.cuisine}) LIKE LOWER(${'%' + cuisine + '%'})`);
+    } catch (error) {
+      console.error("Error getting restaurants by cuisine:", error);
+      return [];
+    }
+  }
+
+  async getRestaurantsByLocation(location: string): Promise<Restaurant[]> {
+    try {
+      return await db
+        .select()
+        .from(restaurants)
+        .where(sql`LOWER(${restaurants.location}) LIKE LOWER(${'%' + location + '%'})`);
+    } catch (error) {
+      console.error("Error getting restaurants by location:", error);
+      return [];
+    }
+  }
+
+  async getRestaurantsByDifficulty(difficulty: string): Promise<Restaurant[]> {
+    try {
+      return await db
+        .select()
+        .from(restaurants)
+        .where(eq(restaurants.bookingDifficulty, difficulty));
+    } catch (error) {
+      console.error("Error getting restaurants by difficulty:", error);
+      return [];
+    }
+  }
+
+  async createRestaurant(insertRestaurant: InsertRestaurant): Promise<Restaurant> {
+    try {
+      const [restaurant] = await db.insert(restaurants).values(insertRestaurant).returning();
+      return restaurant;
+    } catch (error) {
+      console.error("Error creating restaurant:", error);
+      throw error;
+    }
+  }
+
+  // Booking methods
+  async getBooking(id: number): Promise<Booking | undefined> {
+    try {
+      const [booking] = await db.select().from(bookings).where(eq(bookings.id, id));
+      return booking;
+    } catch (error) {
+      console.error("Error getting booking:", error);
+      return undefined;
+    }
+  }
+
+  async getBookingsByUser(userId: number): Promise<Booking[]> {
+    try {
+      return await db.select().from(bookings).where(eq(bookings.userId, userId));
+    } catch (error) {
+      console.error("Error getting bookings by user:", error);
+      return [];
+    }
+  }
+
+  async getBookingsByRestaurant(restaurantId: number): Promise<Booking[]> {
+    try {
+      return await db.select().from(bookings).where(eq(bookings.restaurantId, restaurantId));
+    } catch (error) {
+      console.error("Error getting bookings by restaurant:", error);
+      return [];
+    }
+  }
+
+  async createBooking(insertBooking: InsertBooking): Promise<Booking> {
+    try {
+      const [booking] = await db.insert(bookings).values(insertBooking).returning();
+      return booking;
+    } catch (error) {
+      console.error("Error creating booking:", error);
+      throw error;
+    }
+  }
+
+  async updateBooking(id: number, bookingData: Partial<InsertBooking>): Promise<Booking | undefined> {
+    try {
+      const [updatedBooking] = await db
+        .update(bookings)
+        .set(bookingData)
+        .where(eq(bookings.id, id))
+        .returning();
+      return updatedBooking;
+    } catch (error) {
+      console.error("Error updating booking:", error);
+      return undefined;
+    }
+  }
+
+  // Favorite methods
+  async getFavorite(id: number): Promise<Favorite | undefined> {
+    try {
+      const [favorite] = await db.select().from(favorites).where(eq(favorites.id, id));
+      return favorite;
+    } catch (error) {
+      console.error("Error getting favorite:", error);
+      return undefined;
+    }
+  }
+
+  async getFavoritesByUser(userId: number): Promise<Favorite[]> {
+    try {
+      return await db.select().from(favorites).where(eq(favorites.userId, userId));
+    } catch (error) {
+      console.error("Error getting favorites by user:", error);
+      return [];
+    }
+  }
+
+  async createFavorite(insertFavorite: InsertFavorite): Promise<Favorite> {
+    try {
+      // Check if favorite already exists
+      const existingFavorites = await db
+        .select()
+        .from(favorites)
+        .where(
+          sql`${favorites.userId} = ${insertFavorite.userId} AND ${favorites.restaurantId} = ${insertFavorite.restaurantId}`
+        );
+      
+      if (existingFavorites.length > 0) {
+        return existingFavorites[0];
+      }
+      
+      const [favorite] = await db.insert(favorites).values(insertFavorite).returning();
+      return favorite;
+    } catch (error) {
+      console.error("Error creating favorite:", error);
+      throw error;
+    }
+  }
+
+  async removeFavorite(id: number): Promise<boolean> {
+    try {
+      const result = await db.delete(favorites).where(eq(favorites.id, id)).returning();
+      return result.length > 0;
+    } catch (error) {
+      console.error("Error removing favorite:", error);
+      return false;
+    }
+  }
+
+  // Search methods
+  async searchRestaurants(query: string): Promise<Restaurant[]> {
+    try {
+      if (!query) {
+        return this.getRestaurants();
+      }
+      
+      const lowerQuery = `%${query.toLowerCase()}%`;
+      return await db
+        .select()
+        .from(restaurants)
+        .where(
+          or(
+            sql`LOWER(${restaurants.name}) LIKE ${lowerQuery}`,
+            sql`LOWER(${restaurants.cuisine}) LIKE ${lowerQuery}`,
+            sql`LOWER(${restaurants.location}) LIKE ${lowerQuery}`,
+            sql`LOWER(${restaurants.description}) LIKE ${lowerQuery}`
+          )
+        );
+    } catch (error) {
+      console.error("Error searching restaurants:", error);
+      return [];
+    }
+  }
+
+  async filterRestaurants(filters: Partial<{
+    cuisine: string[];
+    location: string[];
+    difficulty: string[];
+  }>): Promise<Restaurant[]> {
+    try {
+      let conditions = [];
+      
+      if (filters.cuisine && filters.cuisine.length > 0) {
+        conditions.push(
+          or(...filters.cuisine.map(cuisine => 
+            sql`LOWER(${restaurants.cuisine}) LIKE LOWER(${'%' + cuisine + '%'})`
+          ))
+        );
+      }
+      
+      if (filters.location && filters.location.length > 0) {
+        conditions.push(
+          or(...filters.location.map(location => 
+            sql`LOWER(${restaurants.location}) LIKE LOWER(${'%' + location + '%'})`
+          ))
+        );
+      }
+      
+      if (filters.difficulty && filters.difficulty.length > 0) {
+        conditions.push(inArray(restaurants.bookingDifficulty, filters.difficulty));
+      }
+      
+      if (conditions.length === 0) {
+        return this.getRestaurants();
+      }
+      
+      return await db
+        .select()
+        .from(restaurants)
+        .where(and(...conditions));
+    } catch (error) {
+      console.error("Error filtering restaurants:", error);
+      return [];
+    }
+  }
+}
+
+// Initialize with seed data if needed
+async function initializeSampleData() {
+  try {
+    const restaurantCount = await db.select({ count: sql<number>`count(*)` }).from(restaurants);
+    
+    if (restaurantCount[0].count === 0) {
+      const sampleRestaurants: InsertRestaurant[] = [
+        {
+          name: "Chiltern Firehouse",
+          description: "Trendy hotel restaurant by acclaimed chef Nuno Mendes. Frequented by celebrities and A-listers.",
+          cuisine: "Modern European",
+          location: "Marylebone",
+          imageUrl: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "hard",
+          bookingInfo: "Opens reservations 90 days in advance at midnight",
+          bookingPlatform: "OpenTable",
+          bookingNotes: "Some tables reserved for hotel guests",
+          platformId: "chiltern123",
+        },
+        {
+          name: "The Clove Club",
+          description: "2 Michelin Star restaurant serving innovative British cuisine in a historic dining room.",
+          cuisine: "British",
+          location: "Shoreditch",
+          imageUrl: "https://images.unsplash.com/photo-1559304822-9eb2813c9844?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "hard",
+          bookingInfo: "Reservations open 2 months in advance",
+          bookingPlatform: "Tock",
+          bookingNotes: "Required prepayment for tasting menu",
+          platformId: "cloveclub456",
+        },
+        {
+          name: "Dishoom",
+          description: "Popular Bombay-style café serving Indian small plates and signature cocktails in retro setting.",
+          cuisine: "Indian",
+          location: "Covent Garden",
+          imageUrl: "https://images.unsplash.com/photo-1550966871-3ed3cdb5ed0c?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "medium",
+          bookingInfo: "Accepts bookings up to 3 weeks in advance",
+          bookingPlatform: "OpenTable",
+          bookingNotes: "Walk-ins available for bar seating",
+          platformId: "dishoom789",
+        },
+        {
+          name: "Brat",
+          description: "Michelin-starred restaurant focusing on Basque-inspired, wood-fired cooking.",
+          cuisine: "Spanish",
+          location: "Shoreditch",
+          imageUrl: "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "hard",
+          bookingInfo: "Books up 6 weeks in advance",
+          bookingPlatform: "Resy",
+          bookingNotes: "Counter seating available for walk-ins",
+          platformId: "brat101",
+        },
+        {
+          name: "Core by Clare Smyth",
+          description: "3 Michelin Star restaurant offering elegant British cuisine in sophisticated setting.",
+          cuisine: "British",
+          location: "Notting Hill",
+          imageUrl: "https://images.unsplash.com/photo-1544148103-0773bf10d330?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "hard",
+          bookingInfo: "Reservations release 3 months in advance",
+          bookingPlatform: "SevenRooms",
+          bookingNotes: "Requires credit card deposit",
+          platformId: "core202",
+        },
+        {
+          name: "Sketch (The Lecture Room)",
+          description: "Lavish, 3 Michelin Star French restaurant in a converted Georgian townhouse with unique decor.",
+          cuisine: "French",
+          location: "Mayfair",
+          imageUrl: "https://images.unsplash.com/photo-1586999768265-24af89630739?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
+          bookingDifficulty: "hard",
+          bookingInfo: "Books 2 months ahead, releases at 7am",
+          bookingPlatform: "OpenTable",
+          bookingNotes: "Smart dress code required",
+          platformId: "sketch303",
+        }
+      ];
+      
+      await db.insert(restaurants).values(sampleRestaurants);
+      console.log("Database initialized with sample restaurants");
+    }
+  } catch (error) {
+    console.error("Error initializing sample data:", error);
+  }
+}
+
+// Initialize the database storage
+export const storage = new DatabaseStorage();
+
+// Seed the database with initial data
+initializeSampleData().catch(console.error);
