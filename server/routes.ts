@@ -72,6 +72,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  app.get("/api/restaurants/search", async (req: Request, res: Response) => {
+    try {
+      const query = req.query.query as string || "";
+      console.log("Searching restaurants with query:", query);
+      const restaurants = await storage.searchRestaurants(query);
+      res.json(restaurants);
+    } catch (error) {
+      console.error("Search error:", error);
+      res.status(500).json({ message: "Error searching restaurants" });
+    }
+  });
+  
   app.get("/api/restaurants/:id", async (req: Request, res: Response) => {
     try {
       const id = parseInt(req.params.id);
@@ -84,16 +96,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(restaurant);
     } catch (error) {
       res.status(500).json({ message: "Error fetching restaurant" });
-    }
-  });
-  
-  app.get("/api/restaurants/search", async (req: Request, res: Response) => {
-    try {
-      const query = req.query.q as string || "";
-      const restaurants = await storage.searchRestaurants(query);
-      res.json(restaurants);
-    } catch (error) {
-      res.status(500).json({ message: "Error searching restaurants" });
     }
   });
   
