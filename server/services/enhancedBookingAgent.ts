@@ -180,17 +180,19 @@ class EnhancedBookingAgent {
       console.log(`Performing real availability check for ${restaurant.name} on ${restaurant.bookingPlatform}`);
       
       // Pass all available restaurant details to the scraping service
+      const restaurantDetails = {
+        platformId: restaurant.platformId || '',
+        bookingUrl: restaurant.bookingUrl || '',
+        websiteUrl: restaurant.websiteUrl || ''
+      };
+      
       const result = await scrapingService.checkAvailability(
         restaurant.bookingPlatform,
         restaurant.name,
         booking.date,
         booking.time,
         booking.partySize,
-        {
-          platformId: restaurant.platformId,
-          bookingUrl: restaurant.bookingUrl,
-          websiteUrl: restaurant.websiteUrl
-        }
+        restaurantDetails
       );
       
       // Add the log entry from the scraping result
@@ -243,17 +245,19 @@ class EnhancedBookingAgent {
               console.log(`Checking alternative time: ${altTime}`);
               
               // Check availability for this alternative time
+              const altRestaurantDetails = {
+                platformId: restaurant.platformId || '',
+                bookingUrl: restaurant.bookingUrl || '',
+                websiteUrl: restaurant.websiteUrl || ''
+              };
+              
               const altResult = await scrapingService.checkAvailability(
                 restaurant.bookingPlatform,
                 restaurant.name,
                 booking.date, // Same date for now (could be extended to check different dates)
                 altTime,
                 booking.partySize,
-                {
-                  platformId: restaurant.platformId,
-                  bookingUrl: restaurant.bookingUrl,
-                  websiteUrl: restaurant.websiteUrl
-                }
+                altRestaurantDetails
               );
               
               // Add this check to the log
@@ -408,10 +412,10 @@ class EnhancedBookingAgent {
    */
   async cleanup(): Promise<void> {
     // Clear all intervals
-    for (const [bookingId, interval] of this.activeBookings.entries()) {
+    this.activeBookings.forEach((interval, bookingId) => {
       clearInterval(interval);
       console.log(`Cleaned up booking agent for ${bookingId}`);
-    }
+    });
     
     this.activeBookings.clear();
     

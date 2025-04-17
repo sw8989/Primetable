@@ -121,6 +121,7 @@ export type InsertFavorite = z.infer<typeof insertFavoriteSchema>;
 export const bookingFormSchema = insertBookingSchema.extend({
   date: z.string().or(z.date()),
   waitlistOption: z.enum(['join', 'alternativeDates', 'similarRestaurants']).optional(),
+  useRealScraping: z.boolean().optional(),
 });
 
 export type BookingFormData = z.infer<typeof bookingFormSchema>;

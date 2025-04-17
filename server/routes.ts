@@ -139,10 +139,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }]
       });
       
-      // Start the booking agent process in the background
-      bookingAgent.startBookingProcess(booking.id);
+      // Determine which booking agent to use based on request
+      const useRealScraping = req.body.useRealScraping === true;
       
-      res.status(201).json(booking);
+      if (useRealScraping) {
+        console.log(`Using ENHANCED booking agent with real scraping for booking ${booking.id}`);
+        // Use the enhanced booking agent that can do real web scraping
+        enhancedBookingAgent.startBookingProcess(booking.id);
+      } else {
+        console.log(`Using standard booking agent with simulation for booking ${booking.id}`);
+        // Use the standard booking agent with simulation
+        bookingAgent.startBookingProcess(booking.id);
+      }
+      
+      res.status(201).json({
+        ...booking,
+        useRealScraping
+      });
     } catch (error) {
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid booking data", errors: error.format() });
@@ -204,7 +217,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const updatedBooking = await storage.updateBooking(id, {
-        confirmed: true,
         status: "confirmed"
       });
       
@@ -228,12 +240,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
         agentStatus: "failed"
       });
       
-      // Also stop the booking agent
+      // Stop both booking agents (only one will be running)
       bookingAgent.stopBookingProcess(id);
+      enhancedBookingAgent.stopBookingProcess(id);
       
       res.json(updatedBooking);
     } catch (error) {
       res.status(500).json({ message: "Error cancelling booking" });
+    }
+  });
+  
+  // Toggle scraping mode endpoint
+  app.patch("/api/bookings/:id/toggle-scraping", async (req: Request, res: Response) => {
+    try {
+      const id = parseInt(req.params.id);
+      const booking = await storage.getBooking(id);
+      
+      if (!booking) {
+        return res.status(404).json({ message: "Booking not found" });
+      }
+      
+      // Flag to indicate if we're switching to real scraping
+      const useRealScraping = req.body.useRealScraping === true;
+      
+      // Only allow toggling if the booking is still active
+      if (booking.agentStatus !== "active") {
+        return res.status(400).json({ 
+          message: "Cannot change booking agent as booking is not active",
+          booking
+        });
+      }
+      
+      // Stop current booking agents
+      bookingAgent.stopBookingProcess(id);
+      enhancedBookingAgent.stopBookingProcess(id);
+      
+      // Add log entry about switching
+      const updatedLog = booking.agentLog || [];
+      updatedLog.push({
+        timestamp: new Date(),
+        action: "Agent Switch",
+        details: useRealScraping 
+          ? "Switching to enhanced booking agent with real web scraping" 
+          : "Switching to standard booking agent with simulation"
+      });
+      
+      // Update the booking log
+      await storage.updateBooking(id, {
+        agentLog: updatedLog
+      });
+      
+      // Start the appropriate booking agent
+      if (useRealScraping) {
+        console.log(`Switching to ENHANCED booking agent with real scraping for booking ${id}`);
+        enhancedBookingAgent.startBookingProcess(id);
+      } else {
+        console.log(`Switching to standard booking agent with simulation for booking ${id}`);
+        bookingAgent.startBookingProcess(id);
+      }
+      
+      // Get the updated booking
+      const updatedBooking = await storage.getBooking(id);
+      
+      res.json({
+        ...updatedBooking,
+        useRealScraping
+      });
+    } catch (error) {
+      res.status(500).json({ message: "Error toggling scraping mode" });
     }
   });
   
