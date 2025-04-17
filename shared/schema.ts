@@ -32,7 +32,9 @@ export const restaurants = pgTable("restaurants", {
   bookingInfo: text("booking_info").notNull(),
   bookingPlatform: text("booking_platform").notNull(), // OpenTable, Resy, SevenRooms, Tock, Direct
   bookingNotes: text("booking_notes"),
-  platformId: text("platform_id"), // ID in the booking platform system
+  platformId: text("platform_id"), // ID in the booking platform system (e.g., "mountain" for SevenRooms)
+  bookingUrl: text("booking_url"), // Direct URL to the booking page (for embedded systems like SevenRooms)
+  websiteUrl: text("website_url"), // The restaurant's main website where booking widget may be embedded
 });
 
 export const insertRestaurantSchema = createInsertSchema(restaurants).pick({
@@ -46,6 +48,8 @@ export const insertRestaurantSchema = createInsertSchema(restaurants).pick({
   bookingPlatform: true,
   bookingNotes: true,
   platformId: true,
+  bookingUrl: true,
+  websiteUrl: true,
 });
 
 // Agent log entry type
