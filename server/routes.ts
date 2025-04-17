@@ -9,6 +9,7 @@ import {
   bookingFormSchema 
 } from "@shared/schema";
 import { bookingAgent } from "./services/bookingAgent";
+import { enhancedBookingAgent } from "./services/enhancedBookingAgent";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // User routes

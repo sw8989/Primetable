@@ -1,6 +1,6 @@
 import puppeteer, { Browser, Page } from 'puppeteer';
 import axios from 'axios';
-import cheerio from 'cheerio';
+import * as cheerio from 'cheerio';
 import { AgentLogEntry } from '@shared/schema';
 
 /**
@@ -42,7 +42,12 @@ class ScrapingService {
     restaurantName: string,
     date: Date,
     time: string,
-    partySize: number
+    partySize: number,
+    restaurantDetails?: {
+      platformId?: string,  // The ID on the booking platform (e.g., "mountain" for SevenRooms)
+      bookingUrl?: string,  // Direct URL to the booking page
+      websiteUrl?: string   // The restaurant's main website
+    }
   ): Promise<{ available: boolean; logEntry: AgentLogEntry }> {
     const formattedDate = date.toISOString().split('T')[0];
     
@@ -57,13 +62,39 @@ class ScrapingService {
       // Route to the appropriate platform-specific scraper
       switch (platform.toLowerCase()) {
         case 'opentable':
-          return await this.checkOpenTableAvailability(restaurantName, date, time, partySize);
+          return await this.checkOpenTableAvailability(
+            restaurantName, 
+            date, 
+            time, 
+            partySize
+          );
+          
         case 'resy':
-          return await this.checkResyAvailability(restaurantName, date, time, partySize);
+          return await this.checkResyAvailability(
+            restaurantName, 
+            date, 
+            time, 
+            partySize
+          );
+          
         case 'sevenrooms':
-          return await this.checkSevenRoomsAvailability(restaurantName, date, time, partySize);
+          return await this.checkSevenRoomsAvailability(
+            restaurantName, 
+            date, 
+            time, 
+            partySize, 
+            restaurantDetails?.platformId,     // Pass the venue ID
+            restaurantDetails?.bookingUrl      // Pass the direct booking URL
+          );
+          
         case 'tock':
-          return await this.checkTockAvailability(restaurantName, date, time, partySize);
+          return await this.checkTockAvailability(
+            restaurantName, 
+            date, 
+            time, 
+            partySize
+          );
+          
         default:
           return {
             available: false,
@@ -129,7 +160,9 @@ class ScrapingService {
       // Find restaurant in search results
       const restaurantLink = await page.evaluate((name) => {
         const restaurants = document.querySelectorAll('[data-test="restaurant-card"]');
-        for (const restaurant of restaurants) {
+        // Use Array.from to convert NodeList to array for compatibility
+        for (let i = 0; i < restaurants.length; i++) {
+          const restaurant = restaurants[i];
           const nameElement = restaurant.querySelector('[data-test="restaurant-card-name"]');
           if (nameElement && nameElement.textContent?.includes(name)) {
             const link = restaurant.querySelector('a');
@@ -273,19 +306,175 @@ class ScrapingService {
     restaurantName: string,
     date: Date,
     time: string,
-    partySize: number
+    partySize: number,
+    venueId?: string, // The venue ID from the platform (e.g., "mountain")
+    bookingUrl?: string // Direct booking URL if available
   ): Promise<{ available: boolean; logEntry: AgentLogEntry }> {
-    // Implementation would be similar to others but tailored to SevenRooms' structure
-    // This is a placeholder implementation
+    // Initialize browser if needed
+    if (!this.browser) {
+      this.browser = await puppeteer.launch({
+        headless: true,
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+    }
     
-    return {
-      available: false,
-      logEntry: {
-        timestamp: new Date(),
-        action: "SevenRooms Check",
-        details: `SevenRooms availability checking not yet implemented`
-      }
+    const logEntry: AgentLogEntry = {
+      timestamp: new Date(),
+      action: "SevenRooms Check",
+      details: `Checking availability on SevenRooms for ${restaurantName}`
     };
+
+    try {
+      const page = await this.browser.newPage();
+      
+      // Set a user agent to appear as a normal browser
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36');
+      
+      // Format date for SevenRooms URL
+      const formattedDate = date.toISOString().split('T')[0]; // Format: YYYY-MM-DD
+      
+      // Determine the URL to use
+      let sevenRoomsUrl: string;
+      
+      if (bookingUrl) {
+        // Use the provided booking URL if available
+        sevenRoomsUrl = bookingUrl;
+        // Add date parameter if not already in the URL
+        if (!bookingUrl.includes('default_date=')) {
+          sevenRoomsUrl += (bookingUrl.includes('?') ? '&' : '?') + `default_date=${formattedDate}`;
+        }
+      } else if (venueId) {
+        // Construct URL from venue ID
+        sevenRoomsUrl = `https://www.sevenrooms.com/reservations/${venueId}?default_date=${formattedDate}`;
+      } else {
+        // No direct URL info available, log error
+        return {
+          available: false,
+          logEntry: {
+            ...logEntry,
+            action: "Error",
+            details: `Missing SevenRooms venue ID or booking URL for ${restaurantName}`
+          }
+        };
+      }
+
+      console.log(`Navigating to SevenRooms URL: ${sevenRoomsUrl}`);
+      await page.goto(sevenRoomsUrl, { waitUntil: 'networkidle2' });
+      
+      // Wait for the booking interface to load
+      await page.waitForSelector('.sr-reservation-form', { timeout: 20000 });
+      
+      // Set party size
+      // Based on observation, SevenRooms typically has a dropdown for party size
+      try {
+        // Wait for the party size selector and click it
+        await page.waitForSelector('.sr-party-size-select', { timeout: 5000 });
+        await page.click('.sr-party-size-select');
+        
+        // Get the dropdown options
+        const options = await page.$$('.sr-party-size-option');
+        
+        // Find the closest party size option
+        let selectedIndex = 0;
+        for (let i = 0; i < options.length; i++) {
+          const sizeText = await page.evaluate(el => el.textContent, options[i]);
+          const size = parseInt(sizeText?.trim() || '0');
+          
+          if (size === partySize) {
+            selectedIndex = i;
+            break;
+          } else if (size > partySize && i > 0) {
+            // If we passed our target size, use the previous size
+            selectedIndex = i - 1;
+            break;
+          }
+        }
+        
+        // Click the appropriate party size
+        await options[selectedIndex].click();
+      } catch (error) {
+        console.warn('Could not set party size via dropdown, trying alternate method:', error);
+        
+        // Alternative method: try to find an input field
+        try {
+          await page.type('.sr-party-size-input', partySize.toString());
+        } catch (inputError) {
+          console.warn('Could not set party size:', inputError);
+          // Continue anyway, as some restaurants have fixed party sizes
+        }
+      }
+      
+      // Look for available time slots
+      const availableTimeSlots = await page.evaluate((targetTime: string) => {
+        // Find all time slot elements
+        const timeSlots = document.querySelectorAll('.sr-time-slot');
+        
+        // Extract text from time slots
+        const times: string[] = [];
+        let hasTargetTime = false;
+        
+        // Convert NodeList to Array for compatibility
+        Array.from(timeSlots).forEach(slot => {
+          const timeText = slot.textContent?.trim();
+          if (timeText) {
+            times.push(timeText);
+            
+            // Check if this time matches our target time
+            if (timeText.includes(targetTime)) {
+              hasTargetTime = true;
+            }
+          }
+        });
+        
+        return {
+          allTimes: times,
+          hasTargetTime
+        };
+      }, time);
+      
+      // Take a screenshot for debugging (optional)
+      // await page.screenshot({ path: `sevenrooms-debug-${Date.now()}.png` });
+      
+      // Close the page
+      await page.close();
+      
+      if (availableTimeSlots.hasTargetTime) {
+        return {
+          available: true,
+          logEntry: {
+            ...logEntry,
+            action: "Success",
+            details: `Found availability at ${restaurantName} for ${time}!`
+          }
+        };
+      } else if (availableTimeSlots.allTimes.length > 0) {
+        return {
+          available: false,
+          logEntry: {
+            ...logEntry,
+            details: `No availability at ${time}. Available times: ${availableTimeSlots.allTimes.join(', ')}`
+          }
+        };
+      } else {
+        return {
+          available: false,
+          logEntry: {
+            ...logEntry,
+            details: `No available time slots found for ${formattedDate}`
+          }
+        };
+      }
+    } catch (error) {
+      console.error('Error in SevenRooms scraping:', error);
+      return {
+        available: false,
+        logEntry: {
+          ...logEntry,
+          action: "Error",
+          details: `SevenRooms scraping error: ${error instanceof Error ? error.message : String(error)}`
+        }
+      };
+    }
   }
   
   /**

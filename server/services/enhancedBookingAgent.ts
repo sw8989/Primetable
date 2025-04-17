@@ -179,13 +179,18 @@ class EnhancedBookingAgent {
     try {
       console.log(`Performing real availability check for ${restaurant.name} on ${restaurant.bookingPlatform}`);
       
-      // Use the scraping service to check for real availability
+      // Pass all available restaurant details to the scraping service
       const result = await scrapingService.checkAvailability(
         restaurant.bookingPlatform,
         restaurant.name,
         booking.date,
         booking.time,
-        booking.partySize
+        booking.partySize,
+        {
+          platformId: restaurant.platformId,
+          bookingUrl: restaurant.bookingUrl,
+          websiteUrl: restaurant.websiteUrl
+        }
       );
       
       // Add the log entry from the scraping result
@@ -227,6 +232,64 @@ class EnhancedBookingAgent {
               action: "Alternative Times",
               details: `AI suggested alternatives: ${alternatives.suggestions.join(', ')}`
             });
+            
+            // If we find availability by checking the alternative times
+            for (const alternativeTime of alternatives.suggestions) {
+              // Extract the time portion from the suggestion (format might be "7:15 PM on Friday")
+              const timeMatch = alternativeTime.match(/(\d+:\d+\s*[AP]M)/i);
+              if (!timeMatch) continue;
+              
+              const altTime = timeMatch[1];
+              console.log(`Checking alternative time: ${altTime}`);
+              
+              // Check availability for this alternative time
+              const altResult = await scrapingService.checkAvailability(
+                restaurant.bookingPlatform,
+                restaurant.name,
+                booking.date, // Same date for now (could be extended to check different dates)
+                altTime,
+                booking.partySize,
+                {
+                  platformId: restaurant.platformId,
+                  bookingUrl: restaurant.bookingUrl,
+                  websiteUrl: restaurant.websiteUrl
+                }
+              );
+              
+              // Add this check to the log
+              updatedLog.push({
+                timestamp: new Date(),
+                action: "Checking Alternative",
+                details: `Checking suggested alternative time: ${altTime}`
+              });
+              
+              // If we found availability at this alternative time
+              if (altResult.available) {
+                updatedLog.push({
+                  timestamp: new Date(),
+                  action: "Success",
+                  details: `Found availability at alternative time: ${altTime}!`
+                });
+                
+                // If user has selected to accept similar times, book it
+                if (booking.acceptSimilarTimes) {
+                  return await storage.updateBooking(bookingId, {
+                    agentStatus: "success",
+                    status: "confirmed",
+                    time: altTime, // Update to the new time
+                    platformBookingId: `${restaurant.bookingPlatform}-${Date.now()}`,
+                    agentLog: updatedLog
+                  });
+                } else {
+                  // Just note that we found an alternative but didn't book it
+                  updatedLog.push({
+                    timestamp: new Date(),
+                    action: "Alternative Found",
+                    details: `Alternative time available (${altTime}) but not booked as acceptSimilarTimes not enabled`
+                  });
+                }
+              }
+            }
           }
         } catch (error) {
           console.error("Error getting AI alternative suggestions:", error);
