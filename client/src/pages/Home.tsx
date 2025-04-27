@@ -13,8 +13,14 @@ const Home = () => {
   
   // Fetch restaurants on initial load
   useEffect(() => {
+    console.log('Home component mounted, fetching restaurants...');
     getRestaurants();
   }, [getRestaurants]);
+  
+  // Debug: Log when restaurants change
+  useEffect(() => {
+    console.log('Restaurants in Home component:', restaurants.length);
+  }, [restaurants]);
   
   return (
     <>

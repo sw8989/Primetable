@@ -32,12 +32,17 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
   
   const getRestaurants = useCallback(async () => {
     try {
+      console.log('Fetching restaurants...');
       setLoading(true);
       const response = await fetch('/api/restaurants');
+      console.log('Response status:', response.status);
+      
       if (!response.ok) {
         throw new Error('Failed to fetch restaurants');
       }
+      
       const data = await response.json();
+      console.log('Received restaurants:', data.length);
       setRestaurants(data);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
