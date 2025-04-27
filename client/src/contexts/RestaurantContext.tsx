@@ -1,7 +1,8 @@
-import { createContext, useState, useCallback, ReactNode, useEffect } from 'react';
+import { createContext, useState, useCallback, ReactNode } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Restaurant } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery } from '@tanstack/react-query';
 
 interface RestaurantContextType {
   restaurants: Restaurant[];
@@ -26,32 +27,46 @@ export const RestaurantContext = createContext<RestaurantContextType>({
 });
 
 export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
-  const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loading, setLoading] = useState(true); // Start with loading true
+  const [searchTerm, setSearchTerm] = useState('');
+  const [filters, setFilters] = useState<Partial<{
+    cuisine: string[];
+    location: string[];
+    difficulty: string[];
+  }>>({});
   const { toast } = useToast();
+  
+  // Using TanStack Query to fetch and manage restaurants data
+  const { data: allRestaurants = [], isLoading, refetch } = useQuery({
+    queryKey: ['/api/restaurants'],
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+  
+  const { data: filteredRestaurants = [], isLoading: isSearchLoading } = useQuery({
+    queryKey: ['/api/restaurants/search', searchTerm],
+    enabled: Boolean(searchTerm), // Only run when there is a search term
+  });
+  
+  const { data: filterResults = [], isLoading: isFilterLoading } = useQuery({
+    queryKey: ['/api/restaurants/filter', filters],
+    enabled: Object.keys(filters).length > 0 && 
+      Object.values(filters).some(arr => arr && arr.length > 0),
+    queryFn: async () => {
+      const response = await apiRequest('POST', '/api/restaurants/filter', filters);
+      return response.json();
+    }
+  });
+  
+  // Determine which data to show based on active search/filters
+  const restaurants = searchTerm 
+    ? filteredRestaurants 
+    : (Object.keys(filters).length > 0 ? filterResults : allRestaurants);
+  
+  const loading = isLoading || isSearchLoading || isFilterLoading;
   
   const getRestaurants = useCallback(async () => {
     try {
-      console.log('Fetching restaurants...');
-      setLoading(true);
-      
-      // Make sure we're using the absolute URL
-      const apiUrl = window.location.origin + '/api/restaurants';
-      console.log('API URL:', apiUrl);
-      
-      const response = await fetch(apiUrl);
-      console.log('Response status:', response.status);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch restaurants: ${response.status} ${response.statusText}`);
-      }
-      
-      const data = await response.json();
-      console.log('Received restaurants data:', data);
-      console.log('Restaurant count:', Array.isArray(data) ? data.length : 'Not an array');
-      
-      // Make sure we actually set the restaurants
-      setRestaurants(Array.isArray(data) ? data : []);
+      console.log('Manually fetching restaurants...');
+      await refetch();
     } catch (error) {
       console.error('Error fetching restaurants:', error);
       toast({
@@ -59,20 +74,14 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
         description: 'Failed to load restaurants. Please try again later.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
-  }, [toast]);
+  }, [refetch, toast]);
   
   const searchRestaurants = useCallback(async (query: string) => {
     try {
-      setLoading(true);
-      const response = await fetch(`/api/restaurants/search?q=${encodeURIComponent(query)}`);
-      if (!response.ok) {
-        throw new Error('Failed to search restaurants');
-      }
-      const data = await response.json();
-      setRestaurants(data);
+      console.log('Searching restaurants with query:', query);
+      setSearchTerm(query);
+      setFilters({}); // Clear filters when searching
     } catch (error) {
       console.error('Error searching restaurants:', error);
       toast({
@@ -80,21 +89,18 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
         description: 'Failed to search restaurants. Please try again later.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   }, [toast]);
   
-  const filterRestaurants = useCallback(async (filters: Partial<{
+  const filterRestaurants = useCallback(async (newFilters: Partial<{
     cuisine: string[];
     location: string[];
     difficulty: string[];
   }>) => {
     try {
-      setLoading(true);
-      const response = await apiRequest('POST', '/api/restaurants/filter', filters);
-      const data = await response.json();
-      setRestaurants(data);
+      console.log('Filtering restaurants with:', newFilters);
+      setFilters(newFilters);
+      setSearchTerm(''); // Clear search when filtering
     } catch (error) {
       console.error('Error filtering restaurants:', error);
       toast({
@@ -102,20 +108,23 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
         description: 'Failed to filter restaurants. Please try again later.',
         variant: 'destructive',
       });
-    } finally {
-      setLoading(false);
     }
   }, [toast]);
   
   const clearFilters = useCallback(async () => {
-    getRestaurants();
+    console.log('Clearing all filters and search');
+    setFilters({});
+    setSearchTerm('');
+    await getRestaurants();
   }, [getRestaurants]);
   
-  // Initial fetch when provider mounts
-  useEffect(() => {
-    console.log('RestaurantProvider mounted, fetching initial restaurants data');
-    getRestaurants();
-  }, [getRestaurants]);
+  // Log state for debugging
+  console.log('RestaurantContext state:', {
+    restaurantsCount: restaurants.length,
+    loading,
+    searchTerm,
+    filters,
+  });
   
   const value = {
     restaurants,
