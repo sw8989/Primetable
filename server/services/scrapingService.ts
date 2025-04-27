@@ -317,7 +317,8 @@ class ScrapingService {
             const options = document.querySelectorAll('[role="option"], [class*="dropdown-item"]');
             for (const option of Array.from(options)) {
               if (option.textContent?.includes(size.toString())) {
-                option.click();
+                // Use HTMLElement to access click method
+                (option as HTMLElement).click();
                 return;
               }
             }

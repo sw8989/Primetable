@@ -86,7 +86,8 @@ async function testOpenTableScraping() {
     await page.keyboard.press('Enter');
     
     // Take a screenshot of the search results
-    await page.waitForTimeout(2000); // Wait for results to load
+    // Use setTimeout with a promise instead of waitForTimeout
+    await new Promise(resolve => setTimeout(resolve, 2000)); // Wait for results to load
     await page.screenshot({ path: 'opentable-search-results.png' });
     console.log('Search results screenshot saved to opentable-search-results.png');
     
