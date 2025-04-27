@@ -65,7 +65,9 @@ async function testScraping() {
         time: '19:00',
         partySize: 2,
         specialRequests: 'This is a test booking to check scraping functionality',
-        status: 'pending'
+        status: 'pending',
+        agentStatus: 'active', // Required field
+        useRealScraping: true
       }),
     });
     
