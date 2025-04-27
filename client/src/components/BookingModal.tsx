@@ -38,6 +38,7 @@ const formSchema = z.object({
   priorityBooking: z.boolean().default(true),
   acceptSimilarTimes: z.boolean().default(true),
   autoConfirm: z.boolean().default(true),
+  useRealScraping: z.boolean().default(false),
 });
 
 type FormValues = z.infer<typeof formSchema>;
@@ -62,6 +63,7 @@ const BookingModal = ({ open, restaurant, onClose }: BookingModalProps) => {
       priorityBooking: true,
       acceptSimilarTimes: true,
       autoConfirm: true,
+      useRealScraping: false,
     }
   });
   
@@ -76,11 +78,19 @@ const BookingModal = ({ open, restaurant, onClose }: BookingModalProps) => {
       priorityBooking: data.priorityBooking,
       acceptSimilarTimes: data.acceptSimilarTimes,
       autoConfirm: data.autoConfirm,
-      waitlistOption: data.waitlistOption,
       userId: 1, // Demo user ID
       status: "pending",
       agentStatus: "active",
-      agentLog: []
+      agentLog: [],
+      // Pass additional properties
+      useRealScraping: data.useRealScraping,
+      // The waitlistOption is not part of our schema, but we can record it in a comment
+      // in the agent log to preserve this information
+      agentLog: [{
+        timestamp: new Date(),
+        action: "Booking Created",
+        details: `Waitlist option: ${data.waitlistOption}. Using ${data.useRealScraping ? 'real web scraping' : 'simulation'}.`
+      }]
     });
     
     onClose();
@@ -329,6 +339,40 @@ const BookingModal = ({ open, restaurant, onClose }: BookingModalProps) => {
                     </FormItem>
                   )}
                 />
+                
+                <div className="mt-4 pt-4 border-t border-gray-200">
+                  <h4 className="font-medium mb-2 flex items-center text-amber-600">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                    </svg>
+                    Advanced Mode
+                  </h4>
+                  
+                  <FormField
+                    control={form.control}
+                    name="useRealScraping"
+                    render={({ field }) => (
+                      <FormItem className="flex items-center space-x-2">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                            id="use_real_scraping"
+                          />
+                        </FormControl>
+                        <div>
+                          <Label htmlFor="use_real_scraping" className="text-sm font-medium">
+                            Use real web scraping
+                          </Label>
+                          <p className="text-xs text-gray-500">
+                            Enable actual web scraping of the booking platform instead of simulation.
+                            This option may be more effective but consumes more resources.
+                          </p>
+                        </div>
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </div>
             
