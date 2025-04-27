@@ -13,13 +13,22 @@ const Home = () => {
   
   // Fetch restaurants on initial load
   useEffect(() => {
-    console.log('Home component mounted, fetching restaurants...');
-    getRestaurants();
+    console.log('Home component mounted, manually fetching restaurants...');
+    // Call getRestaurants with explicit async/await handling
+    (async () => {
+      try {
+        await getRestaurants();
+        console.log('Finished fetching restaurants from Home component');
+      } catch (err) {
+        console.error('Error fetching from Home:', err);
+      }
+    })();
   }, [getRestaurants]);
   
   // Debug: Log when restaurants change
   useEffect(() => {
-    console.log('Restaurants in Home component:', restaurants.length);
+    console.log('Restaurants in Home component changed:', restaurants.length);
+    console.log('Restaurant data:', restaurants);
   }, [restaurants]);
   
   return (

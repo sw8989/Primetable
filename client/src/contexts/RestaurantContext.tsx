@@ -1,4 +1,4 @@
-import { createContext, useState, useCallback, ReactNode } from 'react';
+import { createContext, useState, useCallback, ReactNode, useEffect } from 'react';
 import { apiRequest } from '@/lib/queryClient';
 import { Restaurant } from '@shared/schema';
 import { useToast } from '@/hooks/use-toast';
@@ -27,23 +27,31 @@ export const RestaurantContext = createContext<RestaurantContextType>({
 
 export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
   const [restaurants, setRestaurants] = useState<Restaurant[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true); // Start with loading true
   const { toast } = useToast();
   
   const getRestaurants = useCallback(async () => {
     try {
       console.log('Fetching restaurants...');
       setLoading(true);
-      const response = await fetch('/api/restaurants');
+      
+      // Make sure we're using the absolute URL
+      const apiUrl = window.location.origin + '/api/restaurants';
+      console.log('API URL:', apiUrl);
+      
+      const response = await fetch(apiUrl);
       console.log('Response status:', response.status);
       
       if (!response.ok) {
-        throw new Error('Failed to fetch restaurants');
+        throw new Error(`Failed to fetch restaurants: ${response.status} ${response.statusText}`);
       }
       
       const data = await response.json();
-      console.log('Received restaurants:', data.length);
-      setRestaurants(data);
+      console.log('Received restaurants data:', data);
+      console.log('Restaurant count:', Array.isArray(data) ? data.length : 'Not an array');
+      
+      // Make sure we actually set the restaurants
+      setRestaurants(Array.isArray(data) ? data : []);
     } catch (error) {
       console.error('Error fetching restaurants:', error);
       toast({
@@ -100,6 +108,12 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
   }, [toast]);
   
   const clearFilters = useCallback(async () => {
+    getRestaurants();
+  }, [getRestaurants]);
+  
+  // Initial fetch when provider mounts
+  useEffect(() => {
+    console.log('RestaurantProvider mounted, fetching initial restaurants data');
     getRestaurants();
   }, [getRestaurants]);
   
