@@ -70,7 +70,8 @@ const BookingModal = ({ open, restaurant, onClose }: BookingModalProps) => {
   const onSubmit = (data: FormValues) => {
     if (!restaurant) return;
     
-    deployBookingAgent({
+    // Prepare booking data object
+    const bookingData = {
       restaurantId: restaurant.id,
       date: data.date,
       time: data.time,
@@ -81,17 +82,16 @@ const BookingModal = ({ open, restaurant, onClose }: BookingModalProps) => {
       userId: 1, // Demo user ID
       status: "pending",
       agentStatus: "active",
-      agentLog: [],
-      // Pass additional properties
       useRealScraping: data.useRealScraping,
-      // The waitlistOption is not part of our schema, but we can record it in a comment
-      // in the agent log to preserve this information
       agentLog: [{
         timestamp: new Date(),
         action: "Booking Created",
         details: `Waitlist option: ${data.waitlistOption}. Using ${data.useRealScraping ? 'real web scraping' : 'simulation'}.`
       }]
-    });
+    };
+    
+    // Deploy the booking agent with booking data
+    deployBookingAgent(bookingData);
     
     onClose();
   };

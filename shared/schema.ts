@@ -77,6 +77,7 @@ export const bookings = pgTable("bookings", {
   priorityBooking: boolean("priority_booking").default(false),
   acceptSimilarTimes: boolean("accept_similar_times").default(false),
   autoConfirm: boolean("auto_confirm").default(false),
+  useRealScraping: boolean("use_real_scraping").default(false),
   createdAt: timestamp("created_at").defaultNow(),
 });
 
@@ -93,6 +94,7 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   priorityBooking: true, 
   acceptSimilarTimes: true,
   autoConfirm: true,
+  useRealScraping: true,
 });
 
 // Favorites schema
