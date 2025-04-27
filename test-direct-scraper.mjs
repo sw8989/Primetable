@@ -8,25 +8,57 @@ async function testPuppeteerDirectly() {
   try {
     console.log('Testing puppeteer directly...');
     
-    // Get the path to Chrome or Chromium on the system
-    const chromePath = execSync('which chromium-browser || which chromium || which google-chrome || echo ""')
-      .toString().trim();
+    // Get paths to commonly used chromium locations in Replit
+    const chromePaths = [
+      '/nix/store/chromium/bin/chromium',  // Common Nix store path
+      '/usr/bin/chromium-browser',         // Common Linux path
+      '/usr/bin/chromium',                 // Another common Linux path
+      '/home/runner/.cache/puppeteer/chrome/linux-*/chrome', // Puppeteer download location
+    ];
+    
+    // Find the first path that exists
+    let chromePath = '';
+    for (const path of chromePaths) {
+      try {
+        // If path has a wildcard, use glob to expand it
+        if (path.includes('*')) {
+          const possiblePaths = execSync(`ls ${path} 2>/dev/null || echo ""`).toString().trim().split('\n');
+          if (possiblePaths[0] && possiblePaths[0].length > 0) {
+            chromePath = possiblePaths[0];
+            break;
+          }
+        } else {
+          // Otherwise just check if the file exists
+          execSync(`test -f ${path}`);
+          chromePath = path;
+          break;
+        }
+      } catch (e) {
+        // Path doesn't exist, try next one
+      }
+    }
     
     if (!chromePath) {
-      console.log('Could not find Chrome or Chromium, trying to install...');
-      execSync('apt-get update && apt-get install -y chromium-browser');
+      console.log('Could not find Chrome or Chromium executable. Check if it is installed.');
+      // Try to check what executables might be available
+      const bins = execSync('ls /nix/store/*chromium*/bin/* | grep -i chrom').toString().trim();
+      console.log('Found potential browser bins:', bins);
       
-      const newChromePath = execSync('which chromium-browser').toString().trim();
-      console.log(`Installed Chrome at: ${newChromePath}`);
-    } else {
-      console.log(`Found browser at: ${chromePath}`);
+      // Try to find with which
+      const whichResult = execSync('which chromium || which chromium-browser || echo ""').toString().trim();
+      console.log('Which result:', whichResult);
+      
+      // Use what we found
+      chromePath = whichResult || bins.split('\n')[0] || '/nix/store/chromium/bin/chromium';
     }
+    
+    console.log(`Using browser at: ${chromePath}`);
     
     // Launch a browser instance
     console.log('Launching browser...');
     const browser = await puppeteer.launch({
       headless: true,
-      executablePath: chromePath || '/usr/bin/chromium-browser',
+      executablePath: chromePath,
       args: ['--no-sandbox', '--disable-setuid-sandbox']
     });
     
