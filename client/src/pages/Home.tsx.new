@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import BookingModal from '@/components/BookingModal';
 import { useBooking } from '@/hooks/useBooking';
 import AgentInterface from '@/components/AgentInterface';
-import type { Restaurant } from '@shared/schema';
+import { Restaurant } from '@shared/schema';
 
 const Home = () => {
   const { bookingModalOpen, selectedRestaurant, closeBookingModal } = useBooking();
