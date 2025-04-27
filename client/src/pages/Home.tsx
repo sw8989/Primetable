@@ -3,6 +3,7 @@ import SearchBar from '@/components/SearchBar';
 import FilterBar from '@/components/FilterBar';
 import RestaurantCard from '@/components/RestaurantCard';
 import BookingModal from '@/components/BookingModal';
+import DirectRestaurantsList from '@/components/DirectRestaurantsList';
 import { useRestaurants } from '@/hooks/useRestaurants';
 import { useBooking } from '@/hooks/useBooking';
 import { Button } from '@/components/ui/button';
@@ -14,21 +15,41 @@ const Home = () => {
   // Fetch restaurants on initial load
   useEffect(() => {
     console.log('Home component mounted, manually fetching restaurants...');
-    // Call getRestaurants with explicit async/await handling
+    console.log('Current RestaurantContext state:', {
+      restaurantsCount: restaurants.length,
+      loading,
+      getRestaurants: !!getRestaurants
+    });
+    
+    // Bypass React Query and try a direct fetch
     (async () => {
       try {
+        // Try a direct fetch to see if we get results
+        const directResponse = await fetch(window.location.origin + '/api/restaurants');
+        const directData = await directResponse.json();
+        console.log('DIRECT FETCH restaurants count:', directData?.length || 0);
+        
+        // Now call the context's method
         await getRestaurants();
         console.log('Finished fetching restaurants from Home component');
       } catch (err) {
         console.error('Error fetching from Home:', err);
       }
     })();
-  }, [getRestaurants]);
+  }, [getRestaurants, restaurants.length, loading]);
   
   // Debug: Log when restaurants change
   useEffect(() => {
     console.log('Restaurants in Home component changed:', restaurants.length);
-    console.log('Restaurant data:', restaurants);
+    console.log('Restaurant data sample:', restaurants.slice(0, 2));
+    
+    // Force console.dir to see full object structure
+    if (restaurants.length > 0) {
+      console.log('First restaurant details:');
+      console.dir(restaurants[0]);
+    } else {
+      console.log('⚠️ NO RESTAURANTS AVAILABLE IN COMPONENT!');
+    }
   }, [restaurants]);
   
   return (
@@ -52,8 +73,15 @@ const Home = () => {
       
       <main className="flex-1 bg-light px-4 py-6">
         <div className="container mx-auto">
-          <h2 className="font-display text-2xl font-semibold mb-6">Exclusive London Restaurants</h2>
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="font-display text-2xl font-semibold">Exclusive London Restaurants</h2>
+            <div className="text-sm text-gray-500">Using direct fetch component</div>
+          </div>
           
+          {/* Using our direct fetch component that bypasses context architecture */}
+          <DirectRestaurantsList />
+          
+          {/* Original context-based implementation (currently not working)
           {loading ? (
             <div className="flex justify-center py-12">
               <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -87,7 +115,7 @@ const Home = () => {
                 </div>
               )}
             </>
-          )}
+          )} */}
         </div>
       </main>
       
