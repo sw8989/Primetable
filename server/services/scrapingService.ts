@@ -145,40 +145,133 @@ class ScrapingService {
       const page = await this.browser.newPage();
       
       // Set a user agent to appear as a normal browser
-      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.93 Safari/537.36');
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/125.0.6422.141 Safari/537.36');
       
       // Navigate to OpenTable search
       await page.goto('https://www.opentable.com/', { waitUntil: 'networkidle2' });
       
-      // Enter restaurant name in search
-      await page.type('input[data-test="search-input"]', restaurantName);
-      await page.keyboard.press('Enter');
+      // Try multiple selector strategies to find the search input
+      let searchInputSelector = 'input[data-test="search-autocomplete-input"]';
+      let searchInputExists = await page.$(searchInputSelector) !== null;
       
-      // Wait for search results
-      await page.waitForSelector('[data-test="search-results-list"]', { timeout: 10000 });
-      
-      // Find restaurant in search results
-      const restaurantLink = await page.evaluate((name) => {
-        const restaurants = document.querySelectorAll('[data-test="restaurant-card"]');
-        // Use Array.from to convert NodeList to array for compatibility
-        for (let i = 0; i < restaurants.length; i++) {
-          const restaurant = restaurants[i];
-          const nameElement = restaurant.querySelector('[data-test="restaurant-card-name"]');
-          if (nameElement && nameElement.textContent?.includes(name)) {
-            const link = restaurant.querySelector('a');
-            return link ? link.href : null;
+      if (!searchInputExists) {
+        // Try fallback selectors
+        const fallbackSelectors = [
+          '#home-page-autocomplete-input',
+          'input[placeholder*="Restaurant"]',
+          'input[aria-label*="Location"]'
+        ];
+        
+        for (const selector of fallbackSelectors) {
+          if (await page.$(selector) !== null) {
+            searchInputSelector = selector;
+            searchInputExists = true;
+            break;
           }
         }
-        return null;
-      }, restaurantName);
+      }
       
-      if (!restaurantLink) {
+      if (!searchInputExists) {
+        console.log('Taking debug screenshot of OpenTable homepage...');
+        await page.screenshot({ path: 'opentable-debug.png' });
+        
+        // Log the page HTML for debugging
+        const html = await page.content();
+        console.error('Could not find search input. Page HTML snippet:', html.substring(0, 500) + '...');
+        
         await page.close();
         return {
           available: false,
           logEntry: {
             ...logEntry,
-            details: `Restaurant "${restaurantName}" not found on OpenTable`
+            details: `Could not find search input on OpenTable. See logs for details.`
+          }
+        };
+      }
+      
+      // Enter restaurant name in search
+      await page.type(searchInputSelector, restaurantName);
+      await page.keyboard.press('Enter');
+      
+      // Wait for search results - try multiple potential selectors
+      const searchResultsSelectors = [
+        '[data-test="search-results-list"]', 
+        '.restaurant-search-results',
+        '[role="listbox"]',
+        '[data-test*="restaurant-result"]'
+      ];
+      
+      let resultsSelector = null;
+      for (const selector of searchResultsSelectors) {
+        try {
+          await page.waitForSelector(selector, { timeout: 5000 });
+          resultsSelector = selector;
+          break;
+        } catch (e) {
+          // Try the next selector
+        }
+      }
+      
+      if (!resultsSelector) {
+        // Take debug screenshot
+        await page.screenshot({ path: 'opentable-search-debug.png' });
+        
+        await page.close();
+        return {
+          available: false,
+          logEntry: {
+            ...logEntry,
+            details: `No search results found for "${restaurantName}". See debug screenshot.`
+          }
+        };
+      }
+      
+      // Find restaurant in search results - look for links containing the restaurant name
+      const restaurantLink = await page.evaluate((name) => {
+        // Helper to normalize text for comparison
+        const normalize = (str: string) => str.toLowerCase().replace(/[^a-z0-9]/g, '');
+        const normalizedName = normalize(name);
+        
+        // Try multiple strategies to find the restaurant
+        // 1. Look for restaurant cards
+        const cards = document.querySelectorAll('[data-test*="restaurant-card"], [class*="restaurant-card"], [class*="RestaurantCard"]');
+        for (const card of Array.from(cards)) {
+          if (normalize(card.textContent || '').includes(normalizedName)) {
+            const link = card.querySelector('a');
+            return link ? link.href : null;
+          }
+        }
+        
+        // 2. Look for any links that might contain the restaurant name
+        const links = document.querySelectorAll('a');
+        for (const link of Array.from(links)) {
+          if (normalize(link.textContent || '').includes(normalizedName)) {
+            return link.href;
+          }
+        }
+        
+        // 3. Look for search result items
+        const searchResults = document.querySelectorAll('[role="option"], [class*="search-result"]');
+        for (const result of Array.from(searchResults)) {
+          if (normalize(result.textContent || '').includes(normalizedName)) {
+            const link = result.querySelector('a') || result.closest('a');
+            return link ? link.href : null;
+          }
+        }
+        
+        return null;
+      }, restaurantName);
+      
+      if (!restaurantLink) {
+        // Take debug screenshot
+        await page.screenshot({ path: 'opentable-results-debug.png' });
+        
+        await page.close();
+        return {
+          available: false,
+          logEntry: {
+            ...logEntry,
+            details: `Restaurant "${restaurantName}" not found in search results. See debug screenshot.`
           }
         };
       }
@@ -186,23 +279,89 @@ class ScrapingService {
       // Go to restaurant page
       await page.goto(restaurantLink, { waitUntil: 'networkidle2' });
       
-      // Set date, time and party size
+      // Try to set date and party size using modern selectors
       const formattedDate = date.toISOString().split('T')[0];
-      await page.select('[data-test="party-size-selector"]', partySize.toString());
       
-      // Click date picker and select date
-      await page.click('[data-test="date-picker"]');
-      // This would require more complex date selection logic
+      // Look for party size selector using multiple strategies
+      const partySizeSelectors = [
+        '[data-test="party-size-selector"]',
+        'select[aria-label*="Party"]',
+        'select[aria-label*="people"]',
+        'button[aria-label*="Party"]',
+        '[class*="party-size"]'
+      ];
       
-      // Check available time slots
-      const availableTimes = await page.evaluate((targetTime) => {
-        const timeSlots = document.querySelectorAll('[data-test="time-slot"]');
-        const times = Array.from(timeSlots).map(slot => slot.textContent?.trim());
-        return {
-          allTimes: times,
-          hasTargetTime: times.some(t => t === targetTime)
-        };
-      }, time);
+      let partySizeSelector = null;
+      for (const selector of partySizeSelectors) {
+        if (await page.$(selector) !== null) {
+          partySizeSelector = selector;
+          break;
+        }
+      }
+      
+      if (partySizeSelector) {
+        // Check if it's a select element or a button that opens a dropdown
+        const isSelect = await page.evaluate(selector => {
+          return document.querySelector(selector)?.tagName === 'SELECT';
+        }, partySizeSelector);
+        
+        if (isSelect) {
+          await page.select(partySizeSelector, partySize.toString());
+        } else {
+          // If it's a button, click it and then find the right option
+          await page.click(partySizeSelector);
+          // Wait for dropdown to appear
+          await page.waitForSelector('[role="option"], [class*="dropdown-item"]', { timeout: 5000 });
+          // Find and click the option with the right party size
+          await page.evaluate((size) => {
+            const options = document.querySelectorAll('[role="option"], [class*="dropdown-item"]');
+            for (const option of Array.from(options)) {
+              if (option.textContent?.includes(size.toString())) {
+                option.click();
+                return;
+              }
+            }
+          }, partySize);
+        }
+      }
+      
+      // Take a screenshot of the restaurant page
+      await page.screenshot({ path: 'opentable-restaurant.png' });
+      
+      // Check for available time slots using multiple selectors
+      const timeSlotSelectors = [
+        '[data-test="time-slot"]',
+        '[role="button"][class*="time"]',
+        'button[class*="time-slot"]',
+        '[aria-label*="' + time + '"]'
+      ];
+      
+      let availableTimes = {
+        allTimes: [] as string[],
+        hasTargetTime: false
+      };
+      
+      for (const selector of timeSlotSelectors) {
+        try {
+          const times = await page.evaluate((selector, targetTime) => {
+            const slots = document.querySelectorAll(selector);
+            if (slots.length === 0) return null;
+            
+            const times = Array.from(slots).map(slot => slot.textContent?.trim() || '');
+            return {
+              allTimes: times,
+              hasTargetTime: times.some(t => t.includes(targetTime))
+            };
+          }, selector, time);
+          
+          if (times && times.allTimes.length > 0) {
+            availableTimes = times;
+            break;
+          }
+        } catch (e) {
+          // Try the next selector
+        }
+      }
       
       // Close the page
       await page.close();
@@ -221,7 +380,7 @@ class ScrapingService {
           available: false,
           logEntry: {
             ...logEntry,
-            details: `No availability at ${time}. Available times: ${availableTimes.allTimes.join(', ') || 'None'}`
+            details: `No availability at ${time}. Available times: ${availableTimes.allTimes.join(', ') || 'None found'}`
           }
         };
       }
