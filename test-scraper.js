@@ -1,8 +1,32 @@
 // A simple script to test the scraping capabilities
-const fetch = require('node-fetch');
+import fetch from 'node-fetch';
+
+// This function checks if we can enable real scraping without an environment variable
+async function checkScrapingSettings() {
+  try {
+    // Try to get the application settings to see if real scraping is enabled
+    const settingsResponse = await fetch('http://localhost:5000/api/settings');
+    if (settingsResponse.ok) {
+      const settings = await settingsResponse.json();
+      console.log('Current scraping settings:', settings);
+      return settings?.useRealScraping;
+    } else {
+      // If settings endpoint doesn't exist, check via logs message
+      console.log('No settings endpoint available, proceeding with default test');
+      return null;
+    }
+  } catch (error) {
+    console.log('Error checking scraping settings, proceeding with test anyway:', error.message);
+    return null;
+  }
+}
 
 async function testScraping() {
   try {
+    // Check if real scraping is enabled on the server
+    console.log('Checking if real scraping is enabled...');
+    await checkScrapingSettings();
+    
     // First, let's get a restaurant to use
     console.log('Fetching a restaurant to test...');
     const restaurantsResponse = await fetch('http://localhost:5000/api/restaurants');
@@ -14,7 +38,7 @@ async function testScraping() {
     }
     
     // Let's pick a restaurant that uses a platform we can test
-    const restaurant = restaurants.find(r => r.bookingPlatform === 'SevenRooms' || r.bookingPlatform === 'OpenTable');
+    let restaurant = restaurants.find(r => r.bookingPlatform === 'SevenRooms' || r.bookingPlatform === 'OpenTable');
     
     if (!restaurant) {
       console.log('No restaurant with a supported platform found. Using first restaurant instead.');
@@ -41,8 +65,7 @@ async function testScraping() {
         time: '19:00',
         partySize: 2,
         specialRequests: 'This is a test booking to check scraping functionality',
-        status: 'pending',
-        useScraper: true // Enable real scraping
+        status: 'pending'
       }),
     });
     
@@ -60,7 +83,7 @@ async function testScraping() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          useScraper: true
+          useRealScraping: true // Note the correct property name should be useRealScraping
         }),
       });
       
@@ -77,6 +100,7 @@ async function testScraping() {
       const updatedBooking = await checkResponse.json();
       
       console.log('Updated booking status:', updatedBooking);
+      console.log('Agent Log entries:', updatedBooking.agentLog);
       console.log('Scraping test complete!');
     }
   } catch (error) {
