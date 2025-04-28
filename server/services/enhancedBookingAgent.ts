@@ -2,6 +2,7 @@ import { storage } from '../storage';
 import openaiService from './openaiService';
 import emailService from './emailService';
 import scrapingService from './scrapingService';
+import config from '../config';
 
 /**
  * Enhanced BookingAgent service with real-time availability checking
@@ -19,12 +20,16 @@ class EnhancedBookingAgent {
   constructor() {
     this.activeBookings = new Map();
     
-    // Feature flags based on available API keys
-    this.emailNotifications = !!process.env.SENDGRID_API_KEY;
-    this.aiAssisted = !!process.env.OPENAI_API_KEY;
+    // Use the configuration from config.ts
+    this.emailNotifications = config.services.emailNotifications;
+    this.aiAssisted = config.services.aiAssisted;
+    this.useRealScraping = config.bookingAgent.useRealScraping;
     
-    // This would typically be controlled via environment variables or settings
-    this.useRealScraping = process.env.ENABLE_REAL_SCRAPING === 'true';
+    // Debug the configuration values
+    console.log(`Using configuration from config.ts:`);
+    console.log(`Email notifications enabled: ${this.emailNotifications}`);
+    console.log(`AI assistance enabled: ${this.aiAssisted}`);
+    console.log(`Real scraping enabled: ${this.useRealScraping}`);
     
     if (!this.emailNotifications) {
       console.warn("Email notifications disabled: SENDGRID_API_KEY not set");
@@ -110,13 +115,13 @@ class EnhancedBookingAgent {
       }
     }
     
-    // Set up the check interval based on difficulty
+    // Set up the check interval based on difficulty using config values (in minutes, convert to ms)
     if (restaurant.bookingDifficulty === "hard") {
-      this.checkInterval = 5 * 60 * 1000; // 5 minutes for hard restaurants
+      this.checkInterval = config.bookingAgent.hardCheckInterval * 60 * 1000;
     } else if (restaurant.bookingDifficulty === "medium") {
-      this.checkInterval = 10 * 60 * 1000; // 10 minutes for medium difficulty
+      this.checkInterval = config.bookingAgent.mediumCheckInterval * 60 * 1000;
     } else {
-      this.checkInterval = 15 * 60 * 1000; // 15 minutes for easy/default
+      this.checkInterval = config.bookingAgent.defaultCheckInterval * 60 * 1000;
     }
     
     // Start a booking monitoring process
@@ -225,8 +230,8 @@ class EnhancedBookingAgent {
       // Add the log entry from the scraping result
       updatedLog.push(result.logEntry);
       
-      // If debugging is needed, save the screenshots or debug info
-      if (process.env.DEBUG_BOOKING_AGENT === 'true') {
+      // If debugging is enabled in config, save the screenshots or debug info
+      if (config.bookingAgent.debug) {
         updatedLog.push({
           timestamp: new Date(),
           action: "Debug",
