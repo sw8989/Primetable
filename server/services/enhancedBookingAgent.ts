@@ -168,16 +168,39 @@ class EnhancedBookingAgent {
    */
   async performRealAvailabilityCheck(bookingId: number): Promise<any> {
     const booking = await storage.getBooking(bookingId);
-    if (!booking) return null;
+    if (!booking) {
+      console.error(`Booking ${bookingId} not found in performRealAvailabilityCheck`);
+      return null;
+    }
     
     const restaurant = await storage.getRestaurant(booking.restaurantId);
-    if (!restaurant) return null;
+    if (!restaurant) {
+      console.error(`Restaurant ${booking.restaurantId} not found for booking ${bookingId} in performRealAvailabilityCheck`);
+      return null;
+    }
     
     // Get the current log
     const updatedLog = booking.agentLog || [];
     
+    // Add a log entry to indicate we're starting a real availability check
+    updatedLog.push({
+      timestamp: new Date(),
+      action: "Starting Check",
+      details: `Performing real availability check for ${restaurant.name} on ${restaurant.bookingPlatform}`
+    });
+    
     try {
       console.log(`Performing real availability check for ${restaurant.name} on ${restaurant.bookingPlatform}`);
+      
+      // Check if this platform is supported
+      const supportedPlatforms = ['OpenTable', 'Resy', 'SevenRooms', 'Tock'];
+      if (!supportedPlatforms.includes(restaurant.bookingPlatform)) {
+        updatedLog.push({
+          timestamp: new Date(),
+          action: "Warning",
+          details: `Platform ${restaurant.bookingPlatform} not explicitly supported, attempting generic approach`
+        });
+      }
       
       // Pass all available restaurant details to the scraping service
       const restaurantDetails = {
@@ -186,6 +209,10 @@ class EnhancedBookingAgent {
         websiteUrl: restaurant.websiteUrl || ''
       };
       
+      // Log that we're about to call the scraping service
+      console.log(`Calling scrapingService.checkAvailability for ${restaurant.name} at ${booking.time} on ${booking.date.toLocaleDateString()}`);
+      
+      // Perform the availability check
       const result = await scrapingService.checkAvailability(
         restaurant.bookingPlatform,
         restaurant.name,
@@ -197,6 +224,15 @@ class EnhancedBookingAgent {
       
       // Add the log entry from the scraping result
       updatedLog.push(result.logEntry);
+      
+      // If debugging is needed, save the screenshots or debug info
+      if (process.env.DEBUG_BOOKING_AGENT === 'true') {
+        updatedLog.push({
+          timestamp: new Date(),
+          action: "Debug",
+          details: `Debug screenshots and information saved for analysis. See opentable-*.png files.`
+        });
+      }
       
       // If availability was found, create booking
       if (result.available) {
@@ -216,11 +252,24 @@ class EnhancedBookingAgent {
           platformBookingId: `${restaurant.bookingPlatform}-${Date.now()}`,
           agentLog: updatedLog
         });
+      } else {
+        // No availability at the exact requested time
+        updatedLog.push({
+          timestamp: new Date(),
+          action: "Not Available",
+          details: `No availability found for ${booking.time}. Will continue monitoring.`
+        });
       }
       
       // If we should check for alternative times
       if (booking.acceptSimilarTimes && this.aiAssisted) {
         try {
+          updatedLog.push({
+            timestamp: new Date(),
+            action: "Strategy",
+            details: `Looking for alternative times since acceptSimilarTimes is enabled`
+          });
+          
           const alternatives = await openaiService.suggestAlternativeTimes(
             restaurant.name,
             booking.date,
@@ -239,10 +288,19 @@ class EnhancedBookingAgent {
             for (const alternativeTime of alternatives.suggestions) {
               // Extract the time portion from the suggestion (format might be "7:15 PM on Friday")
               const timeMatch = alternativeTime.match(/(\d+:\d+\s*[AP]M)/i);
-              if (!timeMatch) continue;
+              if (!timeMatch) {
+                console.log(`Could not extract time from suggestion: ${alternativeTime}`);
+                continue;
+              }
               
               const altTime = timeMatch[1];
               console.log(`Checking alternative time: ${altTime}`);
+              
+              updatedLog.push({
+                timestamp: new Date(),
+                action: "Checking Alternative",
+                details: `Checking suggested alternative time: ${altTime}`
+              });
               
               // Check availability for this alternative time
               const altRestaurantDetails = {
@@ -260,12 +318,8 @@ class EnhancedBookingAgent {
                 altRestaurantDetails
               );
               
-              // Add this check to the log
-              updatedLog.push({
-                timestamp: new Date(),
-                action: "Checking Alternative",
-                details: `Checking suggested alternative time: ${altTime}`
-              });
+              // Add the log entry from the alternative time check
+              updatedLog.push(altResult.logEntry);
               
               // If we found availability at this alternative time
               if (altResult.available) {
@@ -294,11 +348,29 @@ class EnhancedBookingAgent {
                 }
               }
             }
+          } else {
+            updatedLog.push({
+              timestamp: new Date(),
+              action: "No Alternatives",
+              details: `AI could not suggest any alternative times`
+            });
           }
         } catch (error) {
           console.error("Error getting AI alternative suggestions:", error);
+          updatedLog.push({
+            timestamp: new Date(),
+            action: "Error",
+            details: `Error finding alternative times: ${error instanceof Error ? error.message : String(error)}`
+          });
         }
       }
+      
+      // Update the log to record that we completed this check cycle
+      updatedLog.push({
+        timestamp: new Date(),
+        action: "Check Complete",
+        details: `Completed availability check cycle. Next check in ${this.checkInterval/60000} minutes.`
+      });
       
       // Update the log
       return await storage.updateBooking(bookingId, {
@@ -322,27 +394,64 @@ class EnhancedBookingAgent {
   }
   
   /**
-   * Fallback simulation method
+   * Fallback simulation method - used when real scraping is disabled
    */
   async simulateBookingActivity(bookingId: number, platform: string): Promise<any> {
     const booking = await storage.getBooking(bookingId);
-    if (!booking) return null;
+    if (!booking) {
+      console.error(`Booking ${bookingId} not found in simulateBookingActivity`);
+      return null;
+    }
     
     const restaurant = await storage.getRestaurant(booking.restaurantId);
-    if (!restaurant) return null;
+    if (!restaurant) {
+      console.error(`Restaurant ${booking.restaurantId} not found for booking ${bookingId} in simulateBookingActivity`);
+      return null;
+    }
     
-    // Default actions
+    // Get the current log
+    const updatedLog = booking.agentLog || [];
+    
+    // Add a log entry to indicate we're starting a simulated check
+    updatedLog.push({
+      timestamp: new Date(),
+      action: "Starting Check",
+      details: `Running simulated availability check for ${restaurant.name} on ${platform}`
+    });
+    
+    console.log(`Simulating booking activity for ${restaurant.name} (Difficulty: ${restaurant.bookingDifficulty})`);
+    
+    // Default actions that the booking agent might be doing
     let actions = [
       `Checking ${platform} for new availability`,
-      `Monitoring cancellation list`,
-      `Waiting for midnight slot release`,
-      `Searching for alternative time slots`,
-      `Checking for VIP access options`
+      `Monitoring cancellation list for ${restaurant.name}`,
+      `Waiting for midnight slot release on ${platform}`,
+      `Searching for alternative time slots around ${booking.time}`,
+      `Checking for VIP access options at ${restaurant.name}`,
+      `Analyzing booking patterns at ${restaurant.name}`,
+      `Monitoring for cancellations at ${booking.time}`,
+      `Checking private dining options at ${restaurant.name}`
     ];
+    
+    // If restaurant has specific booking info, include it in the actions
+    if (restaurant.bookingInfo) {
+      actions.push(`Following ${restaurant.name}'s booking pattern: ${restaurant.bookingInfo}`);
+    }
+    
+    // If restaurant has booking notes, include them too
+    if (restaurant.bookingNotes) {
+      actions.push(`Noting: ${restaurant.bookingNotes}`);
+    }
     
     // If AI is available, get alternative booking times
     if (this.aiAssisted && Math.random() < 0.3) {
       try {
+        updatedLog.push({
+          timestamp: new Date(),
+          action: "Strategy",
+          details: `Using AI to analyze booking patterns and suggest alternatives`
+        });
+        
         const alternatives = await openaiService.suggestAlternativeTimes(
           restaurant.name,
           booking.date,
@@ -351,48 +460,101 @@ class EnhancedBookingAgent {
         );
         
         if (alternatives.suggestions?.length > 0) {
+          updatedLog.push({
+            timestamp: new Date(),
+            action: "Alternative Times",
+            details: `AI suggested alternatives: ${alternatives.suggestions.join(', ')}`
+          });
+          
           alternatives.suggestions.forEach(suggestion => {
-            actions.push(`AI suggested alternative: ${suggestion}`);
+            actions.push(`Checking AI suggested alternative: ${suggestion}`);
+          });
+        } else {
+          updatedLog.push({
+            timestamp: new Date(),
+            action: "No Alternatives",
+            details: `AI could not suggest any alternative times`
           });
         }
       } catch (error) {
         console.error("Error getting AI alternative suggestions:", error);
+        updatedLog.push({
+          timestamp: new Date(),
+          action: "Error",
+          details: `Error finding alternative times: ${error instanceof Error ? error.message : String(error)}`
+        });
       }
     }
     
+    // Choose a random action to simulate what the agent is doing
     const randomAction = actions[Math.floor(Math.random() * actions.length)];
     
-    // Generate a new log entry
-    const updatedLog = booking.agentLog || [];
+    // Add a monitoring log entry
     updatedLog.push({
       timestamp: new Date(),
       action: "Monitoring",
       details: randomAction
     });
     
-    // Small chance of finding a booking (for demo purposes)
+    // Determine probability of success based on restaurant difficulty
     const successProbability = restaurant.bookingDifficulty === "hard" ? 0.05 : 
                               restaurant.bookingDifficulty === "medium" ? 0.1 : 0.2;
     
+    // Add some randomness - simulate a booking "attempt"
     const random = Math.random();
     if (random < successProbability) {
       // Simulate finding a booking
       updatedLog.push({
         timestamp: new Date(),
         action: "Success",
-        details: "Found available table, booking confirmed!"
+        details: `Found available table at ${restaurant.name} for ${booking.time}! Booking confirmed.`
       });
       
-      // Update booking status
+      // Update booking status as a success
       return await storage.updateBooking(bookingId, {
         agentStatus: "success",
         status: "confirmed",
-        platformBookingId: `${platform}-${Date.now()}`,
+        platformBookingId: `SIMULATION-${platform}-${Date.now()}`,
         agentLog: updatedLog
+      });
+    } else if (random < successProbability + 0.2 && booking.acceptSimilarTimes) {
+      // Simulate finding an alternative time (only if user accepts similar times)
+      const alternativeTimes = [
+        "6:30 PM", "7:30 PM", "8:00 PM", "8:30 PM", "5:45 PM", "9:15 PM"
+      ];
+      const alternativeTime = alternativeTimes[Math.floor(Math.random() * alternativeTimes.length)];
+      
+      updatedLog.push({
+        timestamp: new Date(),
+        action: "Alternative Success",
+        details: `Found availability at alternative time: ${alternativeTime}!`
+      });
+      
+      // Update booking with the alternative time
+      return await storage.updateBooking(bookingId, {
+        agentStatus: "success",
+        status: "confirmed",
+        time: alternativeTime, // Use the alternative time
+        platformBookingId: `SIMULATION-${platform}-ALT-${Date.now()}`,
+        agentLog: updatedLog
+      });
+    } else {
+      // No success this time, will continue monitoring
+      updatedLog.push({
+        timestamp: new Date(),
+        action: "Not Available",
+        details: `No availability found at ${restaurant.name} for ${booking.time}. Will continue monitoring.`
       });
     }
     
-    // Just update the log
+    // Update the log to record that we completed this check cycle
+    updatedLog.push({
+      timestamp: new Date(),
+      action: "Check Complete",
+      details: `Completed simulated check cycle. Next check in ${this.checkInterval/60000} minutes.`
+    });
+    
+    // Update the log
     return await storage.updateBooking(bookingId, {
       agentLog: updatedLog
     });
