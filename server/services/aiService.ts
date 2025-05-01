@@ -1,0 +1,115 @@
+import openaiService from './openaiService';
+import anthropicService from './anthropicService';
+import config from '../config';
+
+/**
+ * Unified AI Service that acts as a facade over different AI providers
+ * 
+ * This service will use either OpenAI or Anthropic based on what's available
+ * and configured in the application's settings.
+ */
+class AiService {
+  private preferredProvider: string;
+  private availableProviders: {[key: string]: boolean};
+  
+  constructor() {
+    // Get AI configuration from config
+    this.preferredProvider = config.services.ai.preferredProvider;
+    this.availableProviders = config.services.ai.providers;
+    
+    if (this.isAvailable()) {
+      console.log(`AI service initialized. Using ${this.preferredProvider} as the preferred provider.`);
+      
+      // Log which providers are available
+      const providers = Object.entries(this.availableProviders)
+        .filter(([_, available]) => available)
+        .map(([name, _]) => name)
+        .join(', ');
+      
+      console.log(`Available AI providers: ${providers || 'None'}`);
+    } else {
+      console.warn('No AI providers available. AI features will be disabled.');
+    }
+  }
+  
+  /**
+   * Check if any AI service is available
+   */
+  isAvailable(): boolean {
+    return Object.values(this.availableProviders).some(available => available);
+  }
+  
+  /**
+   * Get the appropriate service based on availability and preference
+   */
+  getService(): any {
+    // First try the preferred provider
+    if (this.availableProviders[this.preferredProvider]) {
+      return this.preferredProvider === 'anthropic' ? anthropicService : openaiService;
+    }
+    
+    // If preferred provider is not available, try any available provider
+    if (this.availableProviders.anthropic) return anthropicService;
+    if (this.availableProviders.openai) return openaiService;
+    
+    // Return null if no providers are available
+    return null;
+  }
+  
+  /**
+   * Analyzes a restaurant's booking patterns
+   */
+  async analyzeBookingStrategy(
+    restaurantName: string,
+    bookingInfo: string | null,
+    difficulty: string
+  ): Promise<string> {
+    const service = this.getService();
+    
+    if (!service) {
+      return "AI service unavailable. Using standard booking strategy.";
+    }
+    
+    return service.analyzeBookingStrategy(restaurantName, bookingInfo, difficulty);
+  }
+  
+  /**
+   * Analyzes availability patterns and suggests alternative times or dates
+   */
+  async suggestAlternativeTimes(
+    restaurantName: string,
+    preferredDate: Date,
+    preferredTime: string,
+    partySize: number
+  ): Promise<{ suggestions: string[] }> {
+    const service = this.getService();
+    
+    if (!service) {
+      return { suggestions: [] };
+    }
+    
+    return service.suggestAlternativeTimes(restaurantName, preferredDate, preferredTime, partySize);
+  }
+  
+  /**
+   * Generates personalized booking confirmation messages
+   */
+  async generateBookingMessage(
+    restaurantName: string,
+    date: Date,
+    time: string,
+    partySize: number,
+    userName: string
+  ): Promise<string> {
+    const service = this.getService();
+    
+    if (!service) {
+      return `Your booking at ${restaurantName} for ${partySize} guests on ${date.toLocaleDateString()} at ${time} has been confirmed.`;
+    }
+    
+    return service.generateBookingMessage(restaurantName, date, time, partySize, userName);
+  }
+}
+
+const aiService = new AiService();
+export default aiService;

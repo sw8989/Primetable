@@ -26,8 +26,21 @@ export const config = {
   services: {
     // Email notifications enabled if SENDGRID_API_KEY is set
     emailNotifications: !!process.env.SENDGRID_API_KEY,
-    // AI features enabled if OPENAI_API_KEY is set
-    aiAssisted: !!process.env.OPENAI_API_KEY
+    
+    // AI services
+    ai: {
+      // AI features enabled if any AI provider is available
+      enabled: !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY),
+      
+      // Provider preferences
+      preferredProvider: process.env.ANTHROPIC_API_KEY ? 'anthropic' : 'openai',
+      
+      // Provider availability
+      providers: {
+        openai: !!process.env.OPENAI_API_KEY,
+        anthropic: !!process.env.ANTHROPIC_API_KEY
+      }
+    }
   }
 };
 

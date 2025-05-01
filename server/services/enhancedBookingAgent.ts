@@ -1,5 +1,5 @@
 import { storage } from '../storage';
-import openaiService from './openaiService';
+import aiService from './aiService';
 import emailService from './emailService';
 import scrapingService from './scrapingService';
 import config from '../config';
@@ -22,7 +22,7 @@ class EnhancedBookingAgent {
     
     // Use the configuration from config.ts
     this.emailNotifications = config.services.emailNotifications;
-    this.aiAssisted = config.services.aiAssisted;
+    this.aiAssisted = config.services.ai.enabled;
     this.useRealScraping = config.bookingAgent.useRealScraping;
     
     // Debug the configuration values
@@ -71,7 +71,7 @@ class EnhancedBookingAgent {
     
     if (this.aiAssisted) {
       try {
-        bookingStrategy = await openaiService.analyzeBookingStrategy(
+        bookingStrategy = await aiService.analyzeBookingStrategy(
           restaurant.name,
           restaurant.bookingInfo,
           restaurant.bookingDifficulty
