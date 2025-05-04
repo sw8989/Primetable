@@ -10,6 +10,7 @@ import {
 } from "@shared/schema";
 import { bookingAgent } from "./services/bookingAgent";
 import { enhancedBookingAgent } from "./services/enhancedBookingAgent";
+import aiService from "./services/aiService";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // User routes
@@ -359,6 +360,58 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(204).send();
     } catch (error) {
       res.status(500).json({ message: "Error removing favorite" });
+    }
+  });
+  
+  // AI Chatbot test endpoint
+  app.post("/api/chat", async (req: Request, res: Response) => {
+    try {
+      const { message, restaurantId } = req.body;
+      
+      if (!message) {
+        return res.status(400).json({ message: "Message is required" });
+      }
+      
+      let context = "You are a helpful restaurant booking assistant.";
+      let restaurant = null;
+      
+      // If a restaurant ID is provided, get details to provide context
+      if (restaurantId) {
+        restaurant = await storage.getRestaurant(parseInt(restaurantId));
+        if (restaurant) {
+          context = `You are a helpful booking assistant for ${restaurant.name}, which is a ${restaurant.cuisine} restaurant in ${restaurant.location}. 
+          It has a booking difficulty of ${restaurant.bookingDifficulty}. 
+          ${restaurant.bookingInfo ? `Booking information: ${restaurant.bookingInfo}` : ''}`;
+        }
+      }
+      
+      // Use the unified aiService to analyze the booking strategy
+      let response;
+      if (restaurant) {
+        response = await aiService.analyzeBookingStrategy(
+          restaurant.name,
+          restaurant.bookingInfo,
+          restaurant.bookingDifficulty
+        );
+      } else {
+        // If no restaurant, use OpenAI's general capabilities
+        const service = aiService.getService();
+        if (service) {
+          const result = await service.analyzeBookingStrategy(
+            "London restaurants",
+            "The user is asking about booking London restaurants in general: " + message,
+            "medium"
+          );
+          response = result;
+        } else {
+          response = "AI service is currently unavailable. Please try again later.";
+        }
+      }
+      
+      res.json({ response });
+    } catch (error) {
+      console.error("Chat error:", error);
+      res.status(500).json({ message: "Error processing chat request" });
     }
   });
 
