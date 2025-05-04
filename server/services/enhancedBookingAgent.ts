@@ -275,7 +275,7 @@ class EnhancedBookingAgent {
             details: `Looking for alternative times since acceptSimilarTimes is enabled`
           });
           
-          const alternatives = await openaiService.suggestAlternativeTimes(
+          const alternatives = await aiService.suggestAlternativeTimes(
             restaurant.name,
             booking.date,
             booking.time,
@@ -457,7 +457,7 @@ class EnhancedBookingAgent {
           details: `Using AI to analyze booking patterns and suggest alternatives`
         });
         
-        const alternatives = await openaiService.suggestAlternativeTimes(
+        const alternatives = await aiService.suggestAlternativeTimes(
           restaurant.name,
           booking.date,
           booking.time,
@@ -471,7 +471,7 @@ class EnhancedBookingAgent {
             details: `AI suggested alternatives: ${alternatives.suggestions.join(', ')}`
           });
           
-          alternatives.suggestions.forEach(suggestion => {
+          alternatives.suggestions.forEach((suggestion: string) => {
             actions.push(`Checking AI suggested alternative: ${suggestion}`);
           });
         } else {
