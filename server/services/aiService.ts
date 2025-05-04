@@ -114,6 +114,26 @@ class AiService {
     
     return service.generateBookingMessage(restaurantName, date, time, partySize, userName);
   }
+  
+  /**
+   * Process a chat message using the preferred AI service
+   * 
+   * @param message The user's message
+   * @param context Optional context about a specific restaurant
+   * @returns AI response
+   */
+  async processChat(
+    message: string,
+    context?: string
+  ): Promise<string> {
+    const service = this.getService();
+    
+    if (!service || !service.processChat) {
+      return "I'm a restaurant booking assistant, but I'm currently operating in simulation mode. Our AI services will be fully operational soon.";
+    }
+    
+    return service.processChat(message, context);
+  }
 }
 
 const aiService = new AiService();

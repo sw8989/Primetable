@@ -372,40 +372,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message is required" });
       }
       
-      let context = "You are a helpful restaurant booking assistant.";
+      // Default context for general restaurant booking inquiries
+      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants. Provide specific, actionable advice.";
       let restaurant = null;
       
-      // If a restaurant ID is provided, get details to provide context
+      // If a restaurant ID is provided, get details to provide a specific context
       if (restaurantId) {
         restaurant = await storage.getRestaurant(parseInt(restaurantId));
         if (restaurant) {
-          context = `You are a helpful booking assistant for ${restaurant.name}, which is a ${restaurant.cuisine} restaurant in ${restaurant.location}. 
-          It has a booking difficulty of ${restaurant.bookingDifficulty}. 
-          ${restaurant.bookingInfo ? `Booking information: ${restaurant.bookingInfo}` : ''}`;
+          context = `You are a restaurant booking specialist focusing on ${restaurant.name}, 
+          a ${restaurant.cuisine} restaurant in ${restaurant.location}. 
+          It has a booking difficulty level of ${restaurant.bookingDifficulty}. 
+          ${restaurant.bookingInfo ? `Specific booking information: ${restaurant.bookingInfo}` : ''}
+          ${restaurant.bookingNotes ? `Additional notes: ${restaurant.bookingNotes}` : ''}
+          ${restaurant.bookingPlatform ? `This restaurant uses ${restaurant.bookingPlatform} for their reservation system.` : ''}
+          
+          The user is asking about this specific restaurant. Provide tailored advice and strategies for securing a booking, 
+          considering the restaurant's specific booking policies and difficulty level.`;
         }
       }
       
-      // Use the unified aiService to analyze the booking strategy
+      // Use the OpenAI service's processChat function for conversational responses
       let response;
-      if (restaurant) {
-        response = await aiService.analyzeBookingStrategy(
-          restaurant.name,
-          restaurant.bookingInfo,
-          restaurant.bookingDifficulty
-        );
-      } else {
-        // If no restaurant, use OpenAI's general capabilities
+      try {
         const service = aiService.getService();
-        if (service) {
-          const result = await service.analyzeBookingStrategy(
-            "London restaurants",
-            "The user is asking about booking London restaurants in general: " + message,
-            "medium"
-          );
-          response = result;
+        if (service && service.processChat) {
+          console.log('Using OpenAI processChat with message:', message.substring(0, 50) + '...');
+          response = await service.processChat(message, context);
         } else {
-          response = "AI service is currently unavailable. Please try again later.";
+          console.log('Falling back to simulation mode - no processChat available');
+          response = "I'm operating in simulation mode. In a fully implemented version, I would provide personalized booking advice for exclusive London restaurants.";
         }
+      } catch (aiError) {
+        console.error("AI service error:", aiError);
+        response = "I encountered an issue processing your request. Please try again later.";
       }
       
       res.json({ response });
