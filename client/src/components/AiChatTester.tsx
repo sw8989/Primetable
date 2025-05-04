@@ -34,10 +34,23 @@ export function AiChatTester() {
   // Chat mutation
   const chatMutation = useMutation<{response: string}, Error, { message: string; restaurantId?: number }>({
     mutationFn: async (data) => {
-      const response = await apiRequest('/api/chat', 'POST', data);
-      return response.json();
+      console.log('Sending chat request with data:', data);
+      const response = await fetch('/api/chat', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      
+      if (!response.ok) {
+        throw new Error(`API error: ${response.status}`);
+      }
+      
+      const result = await response.json();
+      console.log('Received chat response:', result);
+      return result;
     },
     onSuccess: (data) => {
+      console.log('Success handler called with data:', data);
       // Add the response to the chat history
       setChatHistory((prev) => [
         ...prev,

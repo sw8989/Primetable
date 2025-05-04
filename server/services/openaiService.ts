@@ -186,8 +186,60 @@ export async function generateBookingMessage(
   }
 }
 
+/**
+ * Check if OpenAI service is available
+ */
+export function isAvailable(): boolean {
+  return openai !== null;
+}
+
+/**
+ * Process a chat message about restaurant bookings
+ * 
+ * @param message User's message
+ * @param context Optional context about a specific restaurant
+ * @returns AI response
+ */
+export async function processChat(
+  message: string,
+  context?: string
+): Promise<string> {
+  if (!openai) {
+    return "I'm a restaurant booking assistant, but I'm currently operating in simulation mode. Please ask our team to enable the OpenAI integration for full AI-powered assistance.";
+  }
+  
+  try {
+    const systemMessage = context || 
+      "You are a helpful restaurant booking assistant specialized in securing reservations at London's most exclusive restaurants. " +
+      "Provide detailed, personalized advice on booking strategies and restaurant recommendations.";
+    
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: [
+        {
+          role: "system",
+          content: systemMessage
+        },
+        {
+          role: "user",
+          content: message
+        }
+      ],
+      max_tokens: 800,
+      temperature: 0.7
+    });
+    
+    return response.choices[0].message.content || "I'm sorry, I couldn't process your request right now. Please try again.";
+  } catch (error) {
+    console.error("Error processing chat:", error);
+    return "I apologize, but I encountered an error while processing your request. Please try again later.";
+  }
+}
+
 export default {
+  isAvailable,
   analyzeBookingStrategy,
   suggestAlternativeTimes,
-  generateBookingMessage
+  generateBookingMessage,
+  processChat
 };
