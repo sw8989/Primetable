@@ -1,12 +1,14 @@
 import openaiService from './openaiService';
 import anthropicService from './anthropicService';
+import deepseekService from './deepseekService';
 import config from '../config';
 
 /**
  * Unified AI Service that acts as a facade over different AI providers
  * 
- * This service will use either OpenAI or Anthropic based on what's available
- * and configured in the application's settings.
+ * This service will use OpenAI, Anthropic, or DeepSeek based on what's available
+ * and configured in the application's settings. It implements the Model Context
+ * Protocol (MCP) standard for consistent AI interactions across different providers.
  */
 class AiService {
   private preferredProvider: string;
@@ -45,11 +47,14 @@ class AiService {
   getService(): any {
     // First try the preferred provider
     if (this.availableProviders[this.preferredProvider]) {
-      return this.preferredProvider === 'anthropic' ? anthropicService : openaiService;
+      if (this.preferredProvider === 'anthropic') return anthropicService;
+      if (this.preferredProvider === 'deepseek') return deepseekService;
+      return openaiService;
     }
     
-    // If preferred provider is not available, try any available provider
+    // If preferred provider is not available, try any available provider in priority order
     if (this.availableProviders.anthropic) return anthropicService;
+    if (this.availableProviders.deepseek) return deepseekService;
     if (this.availableProviders.openai) return openaiService;
     
     // Return null if no providers are available
