@@ -78,7 +78,7 @@ export function AiChatTester() {
     // Send the message to the server
     chatMutation.mutate({
       message,
-      ...(selectedRestaurantId ? { restaurantId: parseInt(selectedRestaurantId) } : {})
+      ...(selectedRestaurantId && selectedRestaurantId !== 'none' ? { restaurantId: parseInt(selectedRestaurantId) } : {})
     });
     
     // Clear the input
@@ -101,7 +101,7 @@ export function AiChatTester() {
               <SelectValue placeholder="Select a restaurant (optional)" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">No specific restaurant</SelectItem>
+              <SelectItem value="none">No specific restaurant</SelectItem>
               {restaurants?.map((restaurant: Restaurant) => (
                 <SelectItem key={restaurant.id} value={restaurant.id.toString()}>
                   {restaurant.name} ({restaurant.cuisine}, {restaurant.location})
@@ -173,7 +173,7 @@ export function AiChatTester() {
       </CardContent>
       <CardFooter className="flex justify-between text-xs text-muted-foreground">
         <div>Using OpenAI for AI-powered booking assistance</div>
-        <div>{selectedRestaurantId ? "Restaurant-specific mode" : "General booking advice mode"}</div>
+        <div>{selectedRestaurantId && selectedRestaurantId !== 'none' ? "Restaurant-specific mode" : "General booking advice mode"}</div>
       </CardFooter>
     </Card>
   );
