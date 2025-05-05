@@ -401,11 +401,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
           response = await service.processChat(message, context);
         } else {
           console.log('Falling back to simulation mode - no processChat available');
-          response = "I'm operating in simulation mode. In a fully implemented version, I would provide personalized booking advice for exclusive London restaurants.";
+          response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants like Chiltern Firehouse, The Clove Club, and others. You can try the MCP Booking Agent tab for a more interactive experience.";
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
-        response = "I encountered an issue processing your request. Please try again later.";
+        
+        // Check for quota/rate limit errors
+        const openAIError = aiError as any;
+        if (
+          openAIError.status === 429 || 
+          (openAIError.error && openAIError.error.code === 'insufficient_quota')
+        ) {
+          response = "I apologize, but our AI service has reached its usage limit for now. The system is working in demonstration mode. Please try the MCP Booking Agent tab for a more interactive booking experience.";
+        } else {
+          response = "I encountered an issue processing your request. Please try again later.";
+        }
       }
       
       res.json({ response });

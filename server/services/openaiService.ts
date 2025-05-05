@@ -232,6 +232,16 @@ export async function processChat(
     return response.choices[0].message.content || "I'm sorry, I couldn't process your request right now. Please try again.";
   } catch (error) {
     console.error("Error processing chat:", error);
+    
+    // Check for quota/rate limit errors
+    const openAIError = error as any;
+    if (
+      openAIError.status === 429 || 
+      (openAIError.error && openAIError.error.code === 'insufficient_quota')
+    ) {
+      return "I apologize, but our AI service has reached its usage limit for now. The system is working in simulation mode. In a production environment, you would receive AI-powered booking advice for London's exclusive restaurants. Please try the MCP Booking Agent tab for a demonstration of our booking capabilities.";
+    }
+    
     return "I apologize, but I encountered an error while processing your request. Please try again later.";
   }
 }
