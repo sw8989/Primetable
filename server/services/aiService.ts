@@ -1,6 +1,7 @@
 import openaiService from './openaiService';
 import anthropicService from './anthropicService';
 import deepseekService from './deepseekService';
+import smitheryService from './smitheryService';
 import config from '../config';
 
 /**
@@ -19,7 +20,16 @@ class AiService {
     this.preferredProvider = config.services.ai.preferredProvider;
     this.availableProviders = config.services.ai.providers;
     
+    // Check for Smithery availability
+    this.availableProviders.smithery = smitheryService.isAvailable();
+    
     if (this.isAvailable()) {
+      // If Smithery is available and preferred provider is not set or not available, use Smithery
+      if (this.availableProviders.smithery && 
+          (!this.preferredProvider || !this.availableProviders[this.preferredProvider])) {
+        this.preferredProvider = 'smithery';
+      }
+      
       console.log(`AI service initialized. Using ${this.preferredProvider} as the preferred provider.`);
       
       // Log which providers are available
@@ -49,10 +59,12 @@ class AiService {
     if (this.availableProviders[this.preferredProvider]) {
       if (this.preferredProvider === 'anthropic') return anthropicService;
       if (this.preferredProvider === 'deepseek') return deepseekService;
+      if (this.preferredProvider === 'smithery') return smitheryService;
       return openaiService;
     }
     
     // If preferred provider is not available, try any available provider in priority order
+    if (this.availableProviders.smithery) return smitheryService;
     if (this.availableProviders.anthropic) return anthropicService;
     if (this.availableProviders.deepseek) return deepseekService;
     if (this.availableProviders.openai) return openaiService;

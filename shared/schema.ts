@@ -127,3 +127,29 @@ export const bookingFormSchema = insertBookingSchema.extend({
 });
 
 export type BookingFormData = z.infer<typeof bookingFormSchema>;
+
+// Model Context Protocol (MCP) types
+export const ToolCallSchema = z.object({
+  id: z.string(),
+  type: z.string(),
+  function: z.object({
+    name: z.string(),
+    arguments: z.record(z.any())
+  })
+});
+
+export const ToolResultSchema = z.object({
+  tool_call_id: z.string(),
+  result: z.any()
+});
+
+export const MCPMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "system"]),
+  content: z.string(),
+  tool_calls: z.array(ToolCallSchema).optional(),
+  tool_results: z.array(ToolResultSchema).optional()
+});
+
+export type ToolCall = z.infer<typeof ToolCallSchema>;
+export type ToolResult = z.infer<typeof ToolResultSchema>;
+export type MCPMessage = z.infer<typeof MCPMessageSchema>;
