@@ -6,6 +6,7 @@ import {
   AVAILABLE_TOOLS,
   executeToolCall
 } from './agentProtocol';
+import { fetchSmitheryTools, registerSmitheryTools } from './SmitheryTools';
 import type { Restaurant } from '@shared/schema';
 
 // Placeholder for actual AI service integration - in a real app, this would call an LLM API
@@ -185,14 +186,15 @@ class AIService {
     for (const msg of messages) {
       if (msg.role === 'tool' && msg.tool_results) {
         for (const result of msg.tool_results) {
-          if (result.result.restaurant && result.result.restaurant.id) {
-            return result.result.restaurant.id as number;
+          // Check if restaurant property exists and has an id
+          const resultObj = result.result as any;
+          if (resultObj.restaurant && typeof resultObj.restaurant === 'object' && resultObj.restaurant.id) {
+            return resultObj.restaurant.id as number;
           }
           
           // Check in search results
-          if (result.result.restaurants && Array.isArray(result.result.restaurants) && 
-              result.result.restaurants.length > 0) {
-            return result.result.restaurants[0].id;
+          if (resultObj.restaurants && Array.isArray(resultObj.restaurants) && resultObj.restaurants.length > 0) {
+            return resultObj.restaurants[0].id;
           }
         }
       }
@@ -401,6 +403,8 @@ export class MCPAgent {
   private messages: MCPMessage[] = [];
   private aiService: AIService;
   private restaurants: Restaurant[] = [];
+  private availableTools = AVAILABLE_TOOLS;
+  private smitheryInitialized = false;
   
   constructor(initialRestaurants: Restaurant[] = []) {
     this.aiService = new AIService();
@@ -411,6 +415,25 @@ export class MCPAgent {
       role: 'assistant',
       content: "Hello! I'm your Prime Table booking assistant for London's exclusive restaurants. How can I help you today?"
     });
+    
+    // Initialize Smithery tools
+    this.initializeSmitheryTools();
+  }
+  
+  /**
+   * Initialize and register tools from Smithery MCP Marketplace
+   */
+  private async initializeSmitheryTools(): Promise<void> {
+    try {
+      console.log('Initializing Smithery MCP tools...');
+      this.availableTools = await registerSmitheryTools();
+      this.smitheryInitialized = true;
+      console.log(`MCP Agent now has ${this.availableTools.length} tools available`);
+    } catch (error) {
+      console.error('Failed to initialize Smithery tools:', error);
+      // Continue with default tools
+      this.availableTools = AVAILABLE_TOOLS;
+    }
   }
   
   /**
@@ -426,7 +449,7 @@ export class MCPAgent {
     // Generate assistant response with potential tool calls
     const assistantResponse = await this.aiService.generateResponse(
       this.messages,
-      AVAILABLE_TOOLS.map(tool => tool.name)
+      this.availableTools.map(tool => tool.name)
     );
     
     // Add assistant response to conversation
@@ -452,7 +475,7 @@ export class MCPAgent {
       // Generate a follow-up response based on tool results
       const followUpResponse = await this.aiService.generateResponse(
         this.messages,
-        AVAILABLE_TOOLS.map(tool => tool.name)
+        this.availableTools.map(tool => tool.name)
       );
       
       // Add follow-up response to conversation
