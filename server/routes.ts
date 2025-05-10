@@ -799,6 +799,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   }
+  
+  // Automated booking test endpoint
+  app.post("/api/automated-booking", async (req: Request, res: Response) => {
+    try {
+      // Import automated booking service
+      const { automatedBookingService } = await import('./services/automatedBookingService');
+      
+      // Validate request
+      const requiredFields = ['restaurantName', 'platformId', 'platform', 'date', 'time', 'partySize'];
+      for (const field of requiredFields) {
+        if (!req.body[field]) {
+          return res.status(400).json({ 
+            success: false, 
+            error: `Missing required field: ${field}` 
+          });
+        }
+      }
+      
+      // Parse date
+      let bookingDate: Date;
+      try {
+        bookingDate = new Date(req.body.date);
+        if (isNaN(bookingDate.getTime())) {
+          throw new Error('Invalid date format');
+        }
+      } catch (dateError) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Invalid date format: ${dateError.message}` 
+        });
+      }
+      
+      // Create booking request
+      const bookingRequest = {
+        restaurantName: req.body.restaurantName,
+        platformId: req.body.platformId,
+        platform: req.body.platform,
+        date: bookingDate,
+        time: req.body.time,
+        partySize: parseInt(req.body.partySize),
+        userEmail: req.body.userEmail,
+        userPhone: req.body.userPhone,
+        userName: req.body.userName,
+        specialRequests: req.body.specialRequests,
+        bookingUrl: req.body.bookingUrl
+      };
+      
+      // Check if platform is supported
+      if (!automatedBookingService.isPlatformSupported(bookingRequest.platform)) {
+        return res.status(400).json({ 
+          success: false, 
+          error: `Booking platform not supported: ${bookingRequest.platform}` 
+        });
+      }
+      
+      // Execute booking
+      console.log(`Starting automated booking test for ${bookingRequest.restaurantName}`);
+      const result = await automatedBookingService.executeBooking(bookingRequest);
+      
+      // Return result
+      res.json(result);
+    } catch (error) {
+      console.error("Error in automated booking:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: `Booking automation failed: ${error.message}` 
+      });
+    }
+  });
 
   const httpServer = createServer(app);
   return httpServer;

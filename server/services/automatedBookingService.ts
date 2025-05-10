@@ -63,7 +63,7 @@ abstract class PlatformBooker {
       
       // Launch browser with appropriate settings
       this.browser = await puppeteer.launch({
-        headless: 'new',
+        headless: true,
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
@@ -284,7 +284,7 @@ class OpenTableBooker extends PlatformBooker {
         // Navigate forward in calendar until we reach target month/year
         while (currentMonth !== targetMonth || parseInt(currentYear) !== targetYear) {
           await this.page.click('.next');
-          await this.page.waitForTimeout(500);
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait 500ms
           
           currentMonthText = await this.page.$eval('.datepicker-switch', el => el.textContent);
           [currentMonthName, currentYear] = currentMonthText.trim().split(' ');
