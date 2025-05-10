@@ -32,6 +32,9 @@ const Header = () => {
           <Link href="/favorites" className={`hover:text-secondary transition duration-200 ${location === '/favorites' ? 'text-secondary' : ''}`}>
             Favorites
           </Link>
+          <Link href="/automation-test" className={`hover:text-secondary transition duration-200 ${location === '/automation-test' ? 'text-secondary' : ''}`}>
+            Auto Booking
+          </Link>
           <a href="#" className="hover:text-secondary transition duration-200">Help</a>
           
           {isLoggedIn ? (
@@ -61,6 +64,9 @@ const Header = () => {
               </Link>
               <Link href="/favorites" className={`hover:text-secondary transition py-2 ${location === '/favorites' ? 'text-secondary' : ''}`}>
                 Favorites
+              </Link>
+              <Link href="/automation-test" className={`hover:text-secondary transition py-2 ${location === '/automation-test' ? 'text-secondary' : ''}`}>
+                Auto Booking
               </Link>
               <a href="#" className="hover:text-secondary transition py-2">Help</a>
               

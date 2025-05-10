@@ -10,6 +10,7 @@ import AgentDrawer from "@/components/AgentDrawer";
 import Home from "@/pages/Home";
 import MyBookings from "@/pages/MyBookings";
 import Favorites from "@/pages/Favorites";
+import AutomationTest from "@/pages/AutomationTest";
 import NotFound from "@/pages/not-found";
 
 import { useBooking } from "./hooks/useBooking";
@@ -55,6 +56,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/bookings" component={MyBookings} />
         <Route path="/favorites" component={Favorites} />
+        <Route path="/automation-test" component={AutomationTest} />
         <Route component={NotFound} />
       </Switch>
       <Footer />
