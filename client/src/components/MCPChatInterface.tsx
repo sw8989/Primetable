@@ -9,7 +9,6 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { MCPAgent } from '@/lib/mcp/MCPAgent';
 import { MCPMessage } from '@/lib/mcp/agentProtocol';
 import type { Restaurant } from '@shared/schema';
@@ -107,17 +106,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
         {/* Main message content */}
         <div className="whitespace-pre-line">{message.content}</div>
         
-        {/* Tool results */}
-        {message.tool_results && message.tool_results.length > 0 && (
-          <div className="mt-1 text-xs opacity-80">
-            <details>
-              <summary className="cursor-pointer hover:underline">Tool results</summary>
-              <pre className="mt-2 p-2 bg-gray-100 rounded text-xs overflow-x-auto max-w-full">
-                {JSON.stringify(message.tool_results, null, 2)}
-              </pre>
-            </details>
-          </div>
-        )}
+        {/* Tool results hidden */}
         
         {/* Restaurant results */}
         {restaurants.length > 0 && (
@@ -170,26 +159,11 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
   
   return (
     <div className="flex flex-col h-full bg-white rounded-lg shadow-md">
-      <div className="p-4 border-b flex items-center justify-between">
+      <div className="p-4 border-b flex items-center">
         <div className="flex items-center gap-2">
           <Sparkles className="text-primary h-5 w-5" />
-          <h3 className="font-display text-lg font-semibold">Prime Table MCP Agent</h3>
+          <h3 className="font-display text-lg font-semibold">Prime Table Booking Assistant</h3>
         </div>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <Badge variant="outline" className="bg-blue-50 text-blue-600 border-blue-200">
-                Smithery MCP
-              </Badge>
-            </TooltipTrigger>
-            <TooltipContent>
-              <p className="text-xs max-w-[250px]">
-                This agent uses the Model Context Protocol (MCP) with Smithery.ai integration,
-                providing improved booking capabilities.
-              </p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
       </div>
       
       <div className="flex-1 p-4 overflow-y-auto max-h-[500px] space-y-4">
@@ -223,16 +197,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
                 </div>
               </div>
               
-              {/* Tools indication */}
-              {message.tool_calls && message.tool_calls.length > 0 && (
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {message.tool_calls.map((toolCall, i) => (
-                    <Badge key={i} variant="outline" className="bg-blue-50 text-blue-600 border-blue-200 text-xs">
-                      {toolCall.tool}
-                    </Badge>
-                  ))}
-                </div>
-              )}
+              {/* Hidden tool calls */}
             </div>
           </div>
         ))}
@@ -242,7 +207,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
       <div className="p-4 border-t">
         <div className="flex gap-2">
           <Input 
-            placeholder="Ask the MCP agent to help with booking..." 
+            placeholder="Ask for help with your restaurant booking..." 
             value={inputValue}
             onChange={(e) => setInputValue(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
