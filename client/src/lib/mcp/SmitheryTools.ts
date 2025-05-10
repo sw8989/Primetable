@@ -5,7 +5,6 @@
  */
 
 import { Tool } from './agentProtocol';
-import { config } from '../../../server/config';
 
 // Cache the tools to avoid repeated API calls
 let cachedTools: Tool[] = [];
@@ -92,14 +91,7 @@ export async function registerSmitheryTools(): Promise<Tool[]> {
  */
 export async function initializeSmitheryMCP(): Promise<boolean> {
   try {
-    // Check if we have the API key
-    const hasSmitheryKey = !!config.SMITHERY_API_KEY;
-    
-    if (!hasSmitheryKey) {
-      console.warn('Smithery integration running in simulation mode - no API key available');
-    } else {
-      console.log('Smithery MCP integration initialized with API key');
-    }
+    console.log('Initializing Smithery MCP integration...');
     
     // Pre-fetch tools to warm up the cache
     const tools = await fetchSmitheryTools();

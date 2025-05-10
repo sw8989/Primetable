@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import BookingModal from '@/components/BookingModal';
 import { useBooking } from '@/hooks/useBooking';
 import { AiChatTester } from '@/components/AiChatTester';
+import MCPChatInterface from '@/components/MCPChatInterface';
 import type { Restaurant } from '@shared/schema';
 
 const Home = () => {
@@ -63,7 +64,7 @@ const Home = () => {
           <div className="space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <AiChatTester />
+                <MCPChatInterface restaurants={restaurants} />
               </div>
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-lg shadow-md p-6">
