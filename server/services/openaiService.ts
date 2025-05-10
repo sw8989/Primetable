@@ -277,27 +277,30 @@ export async function processMcpChat(
   
   try {
     // Map the MCP message format to OpenAI format
-    const openaiMessages = messages.map(msg => {
-      // Convert the role to a valid OpenAI role
-      let role: 'system' | 'user' | 'assistant' | 'function';
-      
+    const openaiMessages: any[] = messages.map(msg => {
       if (msg.role === 'tool') {
-        role = 'function';
+        // Handle tool messages - convert to function messages with proper name
+        return {
+          role: 'function',
+          name: 'tool_response',
+          content: msg.content
+        };
       } else if (msg.role === 'user') {
-        role = 'user';
+        return {
+          role: 'user',
+          content: msg.content
+        };
       } else {
-        role = 'assistant';
+        return {
+          role: 'assistant',
+          content: msg.content
+        };
       }
-      
-      return {
-        role,
-        content: msg.content
-      };
     });
     
     // Add system message at the beginning
     openaiMessages.unshift({
-      role: "system",
+      role: 'system',
       content: context
     });
     

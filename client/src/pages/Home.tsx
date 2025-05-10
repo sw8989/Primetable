@@ -1,9 +1,7 @@
 import { useEffect, useState } from 'react';
 import BookingModal from '@/components/BookingModal';
 import { useBooking } from '@/hooks/useBooking';
-import MCPAgentInterface from '@/components/MCPAgentInterface';
 import { AiChatTester } from '@/components/AiChatTester';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import type { Restaurant } from '@shared/schema';
 
 const Home = () => {
@@ -49,7 +47,7 @@ const Home = () => {
               AI-Powered Booking for London's Elite Restaurants
             </h2>
             <p className="text-xl opacity-80 mb-8 leading-relaxed">
-              Our intelligent MCP agent secures reservations at London's most exclusive establishments, 
+              Our intelligent AI booking assistant secures reservations at London's most exclusive establishments, 
               even when they appear fully booked. Just tell our agent where you want to dine.
             </p>
           </div>
@@ -63,60 +61,49 @@ const Home = () => {
           </div>
         ) : (
           <div className="space-y-10">
-            <Tabs defaultValue="mcp-agent" className="w-full">
-              <TabsList className="grid w-full md:w-[400px] grid-cols-2">
-                <TabsTrigger value="mcp-agent">MCP Booking Agent</TabsTrigger>
-                <TabsTrigger value="ai-chat">AI Booking Chat</TabsTrigger>
-              </TabsList>
-              <TabsContent value="mcp-agent" className="mt-6">
-                <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                  <div className="lg:col-span-2">
-                    <MCPAgentInterface restaurants={restaurants} />
-                  </div>
-                  <div className="lg:col-span-1">
-                    <div className="bg-white rounded-lg shadow-md p-6">
-                      <h3 className="font-display text-xl font-semibold mb-4">How It Works</h3>
-                      <div className="space-y-4">
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">1</div>
-                          <div>
-                            <h4 className="font-medium text-lg">Tell the Agent</h4>
-                            <p className="text-gray-600">Describe what kind of restaurant you're looking for, or specify a particular venue</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">2</div>
-                          <div>
-                            <h4 className="font-medium text-lg">Set Parameters</h4>
-                            <p className="text-gray-600">Share your date, time, party size and any special requirements</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">3</div>
-                          <div>
-                            <h4 className="font-medium text-lg">Let Us Work</h4>
-                            <p className="text-gray-600">Our agent checks availability across booking platforms and secures your table</p>
-                          </div>
-                        </div>
-                        
-                        <div className="flex gap-3">
-                          <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">4</div>
-                          <div>
-                            <h4 className="font-medium text-lg">Enjoy Your Meal</h4>
-                            <p className="text-gray-600">Receive confirmation and arrive at your reserved table</p>
-                          </div>
-                        </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2">
+                <AiChatTester />
+              </div>
+              <div className="lg:col-span-1">
+                <div className="bg-white rounded-lg shadow-md p-6">
+                  <h3 className="font-display text-xl font-semibold mb-4">How It Works</h3>
+                  <div className="space-y-4">
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">1</div>
+                      <div>
+                        <h4 className="font-medium text-lg">Tell the Agent</h4>
+                        <p className="text-gray-600">Describe what kind of restaurant you're looking for, or specify a particular venue</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">2</div>
+                      <div>
+                        <h4 className="font-medium text-lg">Set Parameters</h4>
+                        <p className="text-gray-600">Share your date, time, party size and any special requirements</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">3</div>
+                      <div>
+                        <h4 className="font-medium text-lg">Let Us Work</h4>
+                        <p className="text-gray-600">Our agent checks availability across booking platforms and secures your table</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex gap-3">
+                      <div className="flex-shrink-0 w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">4</div>
+                      <div>
+                        <h4 className="font-medium text-lg">Enjoy Your Meal</h4>
+                        <p className="text-gray-600">Receive confirmation and arrive at your reserved table</p>
                       </div>
                     </div>
                   </div>
                 </div>
-              </TabsContent>
-              <TabsContent value="ai-chat" className="mt-6">
-                <AiChatTester />
-              </TabsContent>
-            </Tabs>
+              </div>
+            </div>
           </div>
         )}
       </main>
