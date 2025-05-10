@@ -25,6 +25,7 @@ export const config = {
   // API Keys (stored here for convenient access, but prefer env variables)
   SMITHERY_API_KEY: process.env.SMITHERY_API_KEY || '',
   SERPER_API_KEY: process.env.SERPER_API_KEY || '',  // Added for Serper web search integration
+  FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || '', // Added for FireCrawl web search integration
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || '',

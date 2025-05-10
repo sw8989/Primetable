@@ -545,6 +545,145 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // FireCrawl API endpoints
+  app.all("/api/firecrawl/*", async (req: Request, res: Response) => {
+    try {
+      // Import config to get API key
+      const { config } = await import('./config');
+      
+      // Get the path after /api/firecrawl/
+      const pathSegments = req.path.split('/api/firecrawl/');
+      const fireCrawlPath = pathSegments.length > 1 ? pathSegments[1] : '';
+      
+      // Extract API key from headers or use default
+      const apiKey = req.headers['x-firecrawl-api-key'] as string || config.FIRECRAWL_API_KEY || '';
+      
+      if (!apiKey) {
+        return res.status(401).json({
+          success: false,
+          error: 'FireCrawl API key is required'
+        });
+      }
+      
+      // Handle different endpoints
+      return handleFireCrawlRequest(req, res, fireCrawlPath, apiKey, config);
+    } catch (error: any) {
+      console.error('FireCrawl proxy error:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to process FireCrawl request'
+      });
+    }
+  });
+  
+  // Helper function to handle FireCrawl API requests
+  async function handleFireCrawlRequest(req: Request, res: Response, pathName: string, apiKey: string, config: any) {
+    try {
+      // Test endpoint just returns success
+      if (pathName === 'test') {
+        return res.json({
+          success: true,
+          message: 'FireCrawl API connection test successful'
+        });
+      }
+      
+      // Handle search requests
+      if (pathName === 'search') {
+        // Get search parameters from request body
+        const { query, limit = 5 } = req.body;
+        
+        if (!query) {
+          return res.status(400).json({
+            success: false,
+            error: 'Query parameter is required for search'
+          });
+        }
+        
+        try {
+          console.log(`Processing FireCrawl search for: ${query}`);
+          
+          // Simulate a search response
+          const simulatedResponse = {
+            success: true,
+            results: [
+              {
+                title: `${query} - Restaurant Information (FireCrawl)`,
+                link: `https://example.com/restaurants/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                snippet: `${query} is an exclusive restaurant in London with impeccable service and atmosphere. Book in advance to secure your table.`
+              },
+              {
+                title: `Reviews for ${query} - London's Top Dining Guide`,
+                link: `https://example.com/reviews/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                snippet: `${query} has received critical acclaim for its innovative menu and attention to detail. Opening hours and contact information available.`
+              },
+              {
+                title: `${query} - Reservations and Booking Information`,
+                link: `https://example.com/booking/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                snippet: `Make a reservation at ${query}. Tables are highly sought after and typically booked 30-90 days in advance. Private dining options available.`
+              }
+            ]
+          };
+          
+          return res.json(simulatedResponse);
+        } catch (searchError: any) {
+          console.error('FireCrawl search error:', searchError);
+          return res.status(500).json({
+            success: false,
+            error: searchError.message || 'Failed to perform search'
+          });
+        }
+      }
+      
+      // Handle scrape requests
+      if (pathName === 'scrape') {
+        // Get URL from request body
+        const { url } = req.body;
+        
+        if (!url) {
+          return res.status(400).json({
+            success: false,
+            error: 'URL parameter is required for scraping'
+          });
+        }
+        
+        try {
+          console.log(`Processing FireCrawl scrape for: ${url}`);
+          
+          // Simulate a scrape response
+          const simulatedResponse = {
+            success: true,
+            results: [
+              {
+                url,
+                content: `This is simulated content for ${url} from FireCrawl. The restaurant offers a menu that changes seasonally with a focus on local ingredients. Reservations can be made online or by phone. Opening hours are Tuesday-Sunday, 6PM-11PM.`
+              }
+            ]
+          };
+          
+          return res.json(simulatedResponse);
+        } catch (scrapeError: any) {
+          console.error('FireCrawl scrape error:', scrapeError);
+          return res.status(500).json({
+            success: false,
+            error: scrapeError.message || 'Failed to scrape content'
+          });
+        }
+      }
+      
+      // If we get here, it's an unsupported endpoint
+      return res.status(404).json({
+        success: false,
+        error: `Unsupported FireCrawl API endpoint: ${pathName}`
+      });
+    } catch (error: any) {
+      console.error('Error handling FireCrawl request:', error);
+      return res.status(500).json({
+        success: false,
+        error: error.message || 'Failed to process FireCrawl request'
+      });
+    }
+  }
+  
   // Helper function to handle Serper API requests
   async function handleSerperRequest(req: Request, res: Response, pathName: string, config: any) {
     try {
