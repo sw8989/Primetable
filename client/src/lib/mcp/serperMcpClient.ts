@@ -123,7 +123,7 @@ export class SerperMcpClient {
    * @param url URL to scrape
    */
   async scrape(url: string): Promise<string | null> {
-    if (!this.available || !this.client) {
+    if (!this.available) {
       console.error('Serper MCP client is not available');
       return null;
     }
@@ -139,6 +139,8 @@ export class SerperMcpClient {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'X-Smithery-Api-Key': this.apiKey,
+          'X-Serper-Api-Key': this.serperApiKey
         },
         body: JSON.stringify(params)
       }).then(res => res.json()) as SerperToolResult;
