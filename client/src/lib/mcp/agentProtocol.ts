@@ -119,11 +119,25 @@ export const AVAILABILITY_TOOL: Tool = {
   required_parameters: ['restaurant_id', 'date', 'time', 'party_size']
 };
 
+// Define the web search tool schema
+export const WEB_SEARCH_TOOL: Tool = {
+  name: 'web_search_tool',
+  description: 'Searches the web for information about restaurants',
+  parameters: {
+    query: {
+      type: 'string',
+      description: 'The search query for finding restaurant information online'
+    }
+  },
+  required_parameters: ['query']
+};
+
 // Define all tools available to the agent
 export const AVAILABLE_TOOLS = [
   BOOKING_TOOL,
   SEARCH_TOOL,
-  AVAILABILITY_TOOL
+  AVAILABILITY_TOOL,
+  WEB_SEARCH_TOOL
 ];
 
 /**
@@ -340,6 +354,8 @@ export async function executeToolCall(toolCall: ToolCall): Promise<ToolResult> {
       return await executeSmitheryAvailabilityTool(toolCall.parameters);
     } else if (toolCall.tool === 'make_booking') {
       return await executeSmitheryBookingTool(toolCall.parameters);
+    } else if (toolCall.tool === 'web_search_tool') {
+      return await executeWebSearchTool(toolCall.parameters);
     }
     
     // Handle legacy tools
@@ -487,6 +503,70 @@ async function executeSearchTool(parameters: Record<string, unknown>): Promise<T
         restaurants: []
       },
       error: error instanceof Error ? error.message : 'Failed to search restaurants'
+    };
+  }
+}
+
+/**
+ * Implementation of web_search_tool
+ * This tool allows the agent to search the web for restaurant information
+ * using the Serper MCP client
+ */
+async function executeWebSearchTool(parameters: Record<string, unknown>): Promise<ToolResult> {
+  const { query } = parameters;
+  
+  // Validate required parameters
+  if (!query) {
+    return {
+      result: {},
+      error: 'Missing required parameter "query" for web_search_tool'
+    };
+  }
+  
+  try {
+    // Import serperClient and use it to search
+    const { serperClient } = await import('./serperMcpClient');
+    
+    // Check if Serper is available
+    if (!serperClient.isAvailable()) {
+      return {
+        result: {
+          success: false,
+          message: 'Web search functionality is not available at this time.',
+          fallback: true
+        }
+      };
+    }
+    
+    // Execute search
+    const searchResults = await serperClient.search(query as string);
+    
+    if (!searchResults) {
+      return {
+        result: {
+          success: false,
+          message: 'No search results found.',
+          query: query
+        }
+      };
+    }
+    
+    return {
+      result: {
+        success: true,
+        results: searchResults,
+        count: searchResults.length,
+        query: query
+      }
+    };
+  } catch (error) {
+    console.error('Error executing web search tool:', error);
+    return {
+      result: {
+        success: false,
+        message: 'Failed to search the web.'
+      },
+      error: error instanceof Error ? error.message : 'Unknown error occurred'
     };
   }
 }
