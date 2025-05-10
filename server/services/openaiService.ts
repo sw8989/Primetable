@@ -246,10 +246,194 @@ export async function processChat(
   }
 }
 
+/**
+ * Process a chat message using the Model Context Protocol (MCP)
+ * 
+ * This implements the MCP protocol for the chat interface, supporting:
+ * - Conversation history
+ * - Tool calls and tool results
+ * - System context
+ * 
+ * @param messages Array of messages in the conversation
+ * @param context System context
+ * @param restaurant Optional restaurant data for context
+ * @returns MCP-compliant response
+ */
+export async function processMcpChat(
+  messages: Array<{ role: string; content: string; tool_calls?: any; tool_results?: any }>,
+  context: string,
+  restaurant?: any
+): Promise<{ 
+  role: string; 
+  content: string; 
+  tool_calls?: any[];
+}> {
+  if (!openai) {
+    return { 
+      role: "assistant", 
+      content: "I'm a restaurant booking assistant, but I'm currently operating in simulation mode. Please try the MCP Booking Agent tab for a demonstration of our booking capabilities."
+    };
+  }
+  
+  try {
+    // Map the MCP message format to OpenAI format
+    const openaiMessages = messages.map(msg => {
+      if (msg.role === 'tool') {
+        // For tool messages, transform to assistant/function response format
+        return {
+          role: 'assistant',
+          content: msg.content,
+          function_call: msg.tool_calls ? {
+            name: msg.tool_calls[0]?.tool,
+            arguments: JSON.stringify(msg.tool_calls[0]?.parameters || {})
+          } : undefined
+        };
+      } else {
+        // For user/assistant messages, keep as is
+        return {
+          role: msg.role,
+          content: msg.content
+        };
+      }
+    });
+    
+    // Add system message at the beginning
+    openaiMessages.unshift({
+      role: "system",
+      content: context
+    });
+    
+    // Define the available tools based on the MCP protocol
+    const tools = [
+      {
+        type: "function",
+        function: {
+          name: "search_restaurants_tool",
+          description: "Searches for restaurants by cuisine, location, or other criteria",
+          parameters: {
+            type: "object",
+            properties: {
+              query: {
+                type: "string",
+                description: "The search query"
+              },
+              cuisine: {
+                type: "string",
+                description: "Type of cuisine (optional)"
+              },
+              location: {
+                type: "string",
+                description: "London location (optional)"
+              },
+              difficulty: {
+                type: "string",
+                description: "Booking difficulty level (optional): easy, medium, hard"
+              }
+            },
+            required: ["query"]
+          }
+        }
+      },
+      {
+        type: "function",
+        function: {
+          name: "check_availability_tool",
+          description: "Checks if tables are available at specified restaurants",
+          parameters: {
+            type: "object",
+            properties: {
+              restaurant_id: {
+                type: "number",
+                description: "The ID of the restaurant to check"
+              },
+              date: {
+                type: "string",
+                description: "The date to check in YYYY-MM-DD format"
+              },
+              time: {
+                type: "string",
+                description: "The time to check in 24-hour format (HH:MM)"
+              },
+              party_size: {
+                type: "number",
+                description: "The number of people in the party"
+              }
+            },
+            required: ["restaurant_id", "date", "time", "party_size"]
+          }
+        }
+      }
+    ];
+    
+    // Make the OpenAI API call with tools
+    const response = await openai.chat.completions.create({
+      model: "gpt-4o",
+      messages: openaiMessages,
+      tools: tools,
+      tool_choice: "auto",
+      max_tokens: 800,
+      temperature: 0.7
+    });
+    
+    const responseMessage = response.choices[0].message;
+    
+    // Convert OpenAI format back to MCP format
+    const mcpResponse: { 
+      role: string; 
+      content: string;
+      tool_calls?: any[];
+    } = {
+      role: "assistant",
+      content: responseMessage.content || ""
+    };
+    
+    // If the response includes tool calls, convert to MCP format
+    if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
+      mcpResponse.tool_calls = responseMessage.tool_calls.map(toolCall => {
+        try {
+          const args = JSON.parse(toolCall.function.arguments);
+          return {
+            tool: toolCall.function.name,
+            parameters: args
+          };
+        } catch (error) {
+          console.error("Error parsing tool call arguments:", error);
+          return {
+            tool: toolCall.function.name,
+            parameters: {}
+          };
+        }
+      });
+    }
+    
+    return mcpResponse;
+  } catch (error) {
+    console.error("Error processing MCP chat:", error);
+    
+    // Check for quota/rate limit errors
+    const openAIError = error as any;
+    if (
+      openAIError.status === 429 || 
+      (openAIError.error && openAIError.error.code === 'insufficient_quota')
+    ) {
+      return { 
+        role: "assistant", 
+        content: "I apologize, but our AI service has reached its usage limit for now. The system is working in simulation mode. Please try the MCP Booking Agent tab for a demonstration of our booking capabilities."
+      };
+    }
+    
+    return { 
+      role: "assistant", 
+      content: "I apologize, but I encountered an error while processing your request. Please try again later."
+    };
+  }
+}
+
 export default {
   isAvailable,
   analyzeBookingStrategy,
   suggestAlternativeTimes,
   generateBookingMessage,
-  processChat
+  processChat,
+  processMcpChat
 };

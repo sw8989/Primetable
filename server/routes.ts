@@ -366,14 +366,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Chatbot test endpoint
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
-      const { message, restaurantId } = req.body;
+      const { message, restaurantId, messages } = req.body;
       
-      if (!message) {
-        return res.status(400).json({ message: "Message is required" });
+      if (!message && !messages) {
+        return res.status(400).json({ message: "Message or message history is required" });
       }
       
       // Default context for general restaurant booking inquiries
-      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants. Provide specific, actionable advice.";
+      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants, called 'Prime Table'. Provide specific, actionable advice.";
       let restaurant = null;
       
       // If a restaurant ID is provided, get details to provide a specific context
@@ -392,16 +392,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Use the OpenAI service's processChat function for conversational responses
+      // Check if this is an MCP-style request with message history
+      const isMcpRequest = Array.isArray(messages) && messages.length > 0;
       let response;
+      
       try {
         const service = aiService.getService();
-        if (service && service.processChat) {
-          console.log('Using OpenAI processChat with message:', message.substring(0, 50) + '...');
-          response = await service.processChat(message, context);
+        
+        // Use the appropriate service method based on request type
+        if (service) {
+          if (isMcpRequest && service.processMcpChat) {
+            // Use MCP protocol with message history
+            console.log('Using MCP chat protocol with message history');
+            const mcpResponse = await service.processMcpChat(messages, context, restaurant);
+            return res.json(mcpResponse); 
+          } else if (service.processChat) {
+            // Fallback to standard chat interface
+            console.log('Using OpenAI processChat with message:', message.substring(0, 50) + '...');
+            response = await service.processChat(message, context);
+          } else {
+            console.log('No chat processing available');
+            response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants like Chiltern Firehouse, The Clove Club, and others. You can try the MCP Booking Agent tab for a more interactive experience.";
+          }
         } else {
-          console.log('Falling back to simulation mode - no processChat available');
-          response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants like Chiltern Firehouse, The Clove Club, and others. You can try the MCP Booking Agent tab for a more interactive experience.";
+          console.log('Falling back to simulation mode - no AI service available');
+          response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants. You can try the MCP Booking Agent tab for a more interactive experience.";
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
@@ -418,6 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // For non-MCP requests, return simple response
       res.json({ response });
     } catch (error) {
       console.error("Chat error:", error);
