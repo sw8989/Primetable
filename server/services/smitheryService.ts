@@ -14,8 +14,8 @@ import { MCPMessage, ToolCall, ToolResult } from '@shared/schema';
 
 const SMITHERY_API_URL = 'https://api.smithery.ai/v1';
 
-// Enable simulation mode for development/testing when API is inaccessible
-const SIMULATION_MODE = true;
+// We will only use simulation mode when actual API is not available
+const SIMULATION_MODE = !process.env.OPENAI_API_KEY;
 let connectionStatus = false;
 
 // Check if Smithery API key is available
@@ -134,7 +134,7 @@ function simulateMcpResponse(userMessage: string): { role: string; content: stri
   // Default conversation response
   return {
     role: "assistant",
-    content: "I'm the Prime Table booking assistant using the Model Context Protocol (MCP). I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+    content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
   };
 }
 
