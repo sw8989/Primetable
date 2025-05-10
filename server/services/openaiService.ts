@@ -278,23 +278,21 @@ export async function processMcpChat(
   try {
     // Map the MCP message format to OpenAI format
     const openaiMessages = messages.map(msg => {
+      // Convert the role to a valid OpenAI role
+      let role: 'system' | 'user' | 'assistant' | 'function';
+      
       if (msg.role === 'tool') {
-        // For tool messages, transform to assistant/function response format
-        return {
-          role: 'assistant',
-          content: msg.content,
-          function_call: msg.tool_calls ? {
-            name: msg.tool_calls[0]?.tool,
-            arguments: JSON.stringify(msg.tool_calls[0]?.parameters || {})
-          } : undefined
-        };
+        role = 'function';
+      } else if (msg.role === 'user') {
+        role = 'user';
       } else {
-        // For user/assistant messages, keep as is
-        return {
-          role: msg.role,
-          content: msg.content
-        };
+        role = 'assistant';
       }
+      
+      return {
+        role,
+        content: msg.content
+      };
     });
     
     // Add system message at the beginning
@@ -306,7 +304,7 @@ export async function processMcpChat(
     // Define the available tools based on the MCP protocol
     const tools = [
       {
-        type: "function",
+        type: "function" as const,
         function: {
           name: "search_restaurants_tool",
           description: "Searches for restaurants by cuisine, location, or other criteria",
@@ -335,7 +333,7 @@ export async function processMcpChat(
         }
       },
       {
-        type: "function",
+        type: "function" as const,
         function: {
           name: "check_availability_tool",
           description: "Checks if tables are available at specified restaurants",

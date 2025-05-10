@@ -14,7 +14,7 @@ import {
   Users, 
   Search, 
   CheckSquare, 
-  Tool
+  Wrench
 } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -53,7 +53,7 @@ const getToolIcon = (toolName: string) => {
     case 'check_availability_tool':
       return <Calendar className="h-4 w-4" />;
     default:
-      return <Tool className="h-4 w-4" />;
+      return <Wrench className="h-4 w-4" />;
   }
 };
 
@@ -142,11 +142,14 @@ export function AiChatTester() {
         case 'search_restaurants_tool':
           result = {
             result: {
-              restaurants: restaurants.filter(r => 
-                r.cuisine.toLowerCase().includes((toolCall.parameters.cuisine || '').toLowerCase()) ||
-                r.location.toLowerCase().includes((toolCall.parameters.location || '').toLowerCase()) ||
-                r.bookingDifficulty === toolCall.parameters.difficulty
-              ).slice(0, 3).map(r => ({
+              restaurants: restaurants.filter(r => {
+                const params = toolCall.parameters as { cuisine?: string; location?: string; difficulty?: string };
+                return (
+                  (params.cuisine ? r.cuisine.toLowerCase().includes((params.cuisine || '').toLowerCase()) : false) ||
+                  (params.location ? r.location.toLowerCase().includes((params.location || '').toLowerCase()) : false) ||
+                  (params.difficulty ? r.bookingDifficulty === params.difficulty : false)
+                );
+              }).slice(0, 3).map(r => ({
                 id: r.id,
                 name: r.name,
                 cuisine: r.cuisine,
@@ -158,13 +161,20 @@ export function AiChatTester() {
           break;
           
         case 'check_availability_tool':
+          const availParams = toolCall.parameters as { 
+            restaurant_id?: number; 
+            date?: string; 
+            time?: string; 
+            party_size?: number 
+          };
+          
           result = {
             result: {
               available: Math.random() > 0.7, // Simulate random availability
-              restaurant: restaurants.find(r => r.id === toolCall.parameters.restaurant_id)?.name,
-              date: toolCall.parameters.date,
-              time: toolCall.parameters.time,
-              party_size: toolCall.parameters.party_size,
+              restaurant: restaurants.find(r => r.id === availParams.restaurant_id)?.name,
+              date: availParams.date,
+              time: availParams.time,
+              party_size: availParams.party_size,
               alternative_times: ['18:00', '21:30'] // Sample alternative times
             }
           };
@@ -213,9 +223,7 @@ export function AiChatTester() {
     setChatHistory((prev) => [...prev, userMessage]);
     
     // Prepare the full conversation history for MCP
-    const updatedMessages = [...chatHistory, userMessage].filter(
-      msg => msg.role !== 'system' // Filter out any system messages as they're handled by the server
-    );
+    const updatedMessages = [...chatHistory, userMessage];
     
     // Send the full conversation to the server
     chatMutation.mutate({
@@ -327,7 +335,7 @@ export function AiChatTester() {
                 
                 {message.role === 'tool' && (
                   <div className="flex items-center gap-1 mb-1 text-xs text-blue-500">
-                    <Tool className="h-3 w-3" />
+                    <Wrench className="h-3 w-3" />
                     <span>Tool</span>
                   </div>
                 )}
