@@ -22,6 +22,13 @@ export const config = {
   
   // Database configuration (handled separately by DATABASE_URL env var)
   
+  // API Keys (stored here for convenient access, but prefer env variables)
+  SMITHERY_API_KEY: process.env.SMITHERY_API_KEY || '',
+  OPENAI_API_KEY: process.env.OPENAI_API_KEY || '',
+  ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || '',
+  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || '',
+  SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || '',
+  
   // External services configuration
   services: {
     // Email notifications enabled if SENDGRID_API_KEY is set

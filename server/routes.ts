@@ -458,6 +458,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Smithery proxy endpoint
+  app.all("/api/smithery-proxy/*", async (req: Request, res: Response) => {
+    try {
+      // Import config to get API key
+      const { config } = await import('./config');
+      
+      // Get the path after /api/smithery-proxy/
+      const pathSegments = req.path.split('/api/smithery-proxy/');
+      const smitheryPath = pathSegments.length > 1 ? pathSegments[1] : '';
+      
+      // Base Smithery API URL
+      const SMITHERY_BASE_URL = 'https://api.smithery.ai';
+      
+      // Log the proxy request (exclude authorization headers)
+      const logSafeHeaders = { ...req.headers };
+      delete logSafeHeaders.authorization;
+      console.log(`Smithery proxy: ${req.method} ${smitheryPath}`, { headers: logSafeHeaders });
+      
+      // Forward the request to Smithery
+      try {
+        // Prepare the request to Smithery API
+        const apiKey = config.SMITHERY_API_KEY || 'simulation-mode';
+        const url = `${SMITHERY_BASE_URL}/${smitheryPath}`;
+        
+        // Set up the headers with authorization
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        };
+        
+        // Clone other relevant headers from the original request
+        if (req.headers['accept']) {
+          headers['Accept'] = req.headers['accept'] as string;
+        }
+        
+        // Create request options
+        const fetchOptions: RequestInit = {
+          method: req.method,
+          headers: headers,
+        };
+        
+        // Add body for methods that need it
+        if (['POST', 'PUT', 'PATCH'].includes(req.method)) {
+          fetchOptions.body = JSON.stringify(req.body);
+        }
+        
+        // Make the request to Smithery
+        const smitheryResponse = await fetch(url, fetchOptions);
+        
+        // Get the JSON response if possible
+        let responseData;
+        const contentType = smitheryResponse.headers.get('content-type');
+        if (contentType && contentType.includes('application/json')) {
+          responseData = await smitheryResponse.json();
+        } else {
+          responseData = { text: await smitheryResponse.text() };
+        }
+        
+        // Forward the response
+        return res.status(smitheryResponse.status).json(responseData);
+      } catch (smitheryError: any) {
+        console.error('Smithery proxy error:', smitheryError);
+        return res.status(500).json({
+          error: true,
+          message: smitheryError.message || 'Error calling Smithery API',
+        });
+      }
+    } catch (error) {
+      console.error('Smithery proxy setup error:', error);
+      return res.status(500).json({
+        error: true,
+        message: 'Failed to initialize Smithery proxy',
+      });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
