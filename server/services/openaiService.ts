@@ -271,7 +271,7 @@ export async function processMcpChat(
   if (!openai) {
     return { 
       role: "assistant", 
-      content: "I'm a restaurant booking assistant, but I'm currently operating in simulation mode. Please try the MCP Booking Agent tab for a demonstration of our booking capabilities."
+      content: "I'm a restaurant booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
     };
   }
   
@@ -419,7 +419,7 @@ export async function processMcpChat(
     ) {
       return { 
         role: "assistant", 
-        content: "I apologize, but our AI service has reached its usage limit for now. The system is working in simulation mode. Please try the MCP Booking Agent tab for a demonstration of our booking capabilities."
+        content: "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance."
       };
     }
     

@@ -39,10 +39,10 @@ export const config = {
       // AI features enabled if any AI provider is available
       enabled: !!(process.env.OPENAI_API_KEY || process.env.ANTHROPIC_API_KEY || process.env.DEEPSEEK_API_KEY || process.env.SMITHERY_API_KEY),
       
-      // Provider preferences - prioritize in order: Smithery, Anthropic, DeepSeek, OpenAI
-      preferredProvider: process.env.SMITHERY_API_KEY ? 'smithery' :
+      // Provider preferences - prioritize OpenAI for direct API access
+      preferredProvider: process.env.OPENAI_API_KEY ? 'openai' :
                          process.env.ANTHROPIC_API_KEY ? 'anthropic' : 
-                         process.env.DEEPSEEK_API_KEY ? 'deepseek' : 'openai',
+                         process.env.DEEPSEEK_API_KEY ? 'deepseek' : 'smithery',
       
       // Provider availability
       providers: {
