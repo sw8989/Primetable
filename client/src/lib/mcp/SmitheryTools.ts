@@ -4,25 +4,55 @@
  * This module handles fetching and registering MCP tools from the Smithery.ai marketplace.
  */
 
-import { Tool, AVAILABLE_TOOLS } from './agentProtocol';
+import { Tool } from './agentProtocol';
+import { config } from '../../../server/config';
+
+// Cache the tools to avoid repeated API calls
+let cachedTools: Tool[] = [];
+let lastFetchTime = 0;
+const CACHE_TTL = 5 * 60 * 1000; // 5 minutes cache
 
 /**
  * Fetch available MCP tools from the API
  */
 export async function fetchSmitheryTools(): Promise<Tool[]> {
+  // Use cache if it's still valid
+  const now = Date.now();
+  if (cachedTools.length > 0 && now - lastFetchTime < CACHE_TTL) {
+    console.log('Using cached Smithery tools');
+    return cachedTools;
+  }
+
   try {
+    console.log('Fetching Smithery MCP tools from API');
     const response = await fetch('/api/mcp/tools');
     
     if (!response.ok) {
-      throw new Error(`Failed to fetch Smithery MCP tools: ${response.status}`);
+      throw new Error(`Failed to fetch Smithery tools: ${response.status}`);
     }
     
     const data = await response.json();
     
-    // Transform Smithery tools to our Tool format
-    return transformSmitheryTools(data.tools || []);
+    if (!data.tools || !Array.isArray(data.tools)) {
+      throw new Error('Invalid response format for Smithery tools');
+    }
+    
+    // Transform the tools to match our internal format
+    const tools = transformSmitheryTools(data.tools);
+    
+    // Update cache
+    cachedTools = tools;
+    lastFetchTime = now;
+    
+    return tools;
   } catch (error) {
-    console.error('Error fetching Smithery MCP tools:', error);
+    console.error('Error fetching Smithery tools:', error);
+    // If cache exists, return it even if expired
+    if (cachedTools.length > 0) {
+      console.warn('Using expired Smithery tools cache due to fetch error');
+      return cachedTools;
+    }
+    // If no cache, return empty array
     return [];
   }
 }
@@ -33,15 +63,17 @@ export async function fetchSmitheryTools(): Promise<Tool[]> {
 function transformSmitheryTools(smitheryTools: any[]): Tool[] {
   return smitheryTools.map(tool => {
     // Extract required parameters
-    const requiredParams = Object.entries(tool.parameters || {})
-      .filter(([_, value]: [string, any]) => !value.optional)
-      .map(([key]) => key);
+    const requiredParameters = Object.keys(tool.parameters || {})
+      .filter(param => {
+        const paramInfo = tool.parameters[param];
+        return !paramInfo.optional;
+      });
     
     return {
       name: tool.name,
-      description: tool.description || `Smithery tool: ${tool.name}`,
+      description: tool.description,
       parameters: tool.parameters || {},
-      required_parameters: requiredParams
+      required_parameters: requiredParameters
     };
   });
 }
@@ -50,23 +82,9 @@ function transformSmitheryTools(smitheryTools: any[]): Tool[] {
  * Register Smithery tools with our local tool registry
  */
 export async function registerSmitheryTools(): Promise<Tool[]> {
-  const smitheryTools = await fetchSmitheryTools();
-  
-  if (smitheryTools.length === 0) {
-    console.log('No Smithery tools available or could not fetch tools');
-    return AVAILABLE_TOOLS;
-  }
-  
-  // Filter out any smithery tools that might conflict with our existing tools
-  const existingToolNames = new Set(AVAILABLE_TOOLS.map(t => t.name));
-  const uniqueSmitheryTools = smitheryTools.filter(t => !existingToolNames.has(t.name));
-  
-  // Log the available tools
-  console.log(`Registered ${uniqueSmitheryTools.length} Smithery MCP tools:`);
-  uniqueSmitheryTools.forEach(tool => console.log(` - ${tool.name}: ${tool.description}`));
-  
-  // Return merged tools
-  return [...AVAILABLE_TOOLS, ...uniqueSmitheryTools];
+  const tools = await fetchSmitheryTools();
+  console.log(`Registered ${tools.length} Smithery MCP tools`);
+  return tools;
 }
 
 /**
@@ -74,10 +92,22 @@ export async function registerSmitheryTools(): Promise<Tool[]> {
  */
 export async function initializeSmitheryMCP(): Promise<boolean> {
   try {
-    const tools = await registerSmitheryTools();
-    return tools.length > AVAILABLE_TOOLS.length;
+    // Check if we have the API key
+    const hasSmitheryKey = !!config.SMITHERY_API_KEY;
+    
+    if (!hasSmitheryKey) {
+      console.warn('Smithery integration running in simulation mode - no API key available');
+    } else {
+      console.log('Smithery MCP integration initialized with API key');
+    }
+    
+    // Pre-fetch tools to warm up the cache
+    const tools = await fetchSmitheryTools();
+    console.log(`Smithery MCP initialized with ${tools.length} tools`);
+    
+    return true;
   } catch (error) {
-    console.error('Error initializing Smithery MCP:', error);
+    console.error('Failed to initialize Smithery MCP:', error);
     return false;
   }
 }
