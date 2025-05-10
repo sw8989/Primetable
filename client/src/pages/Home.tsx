@@ -23,7 +23,7 @@ const Home = () => {
         
         const data = await response.json();
         if (Array.isArray(data)) {
-          console.log(`Loaded ${data.length} restaurants for MCP agent interface`);
+          console.log(`Loaded ${data.length} restaurants for booking assistant`);
           setRestaurants(data);
         }
       } catch (error) {

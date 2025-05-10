@@ -20,8 +20,8 @@ interface MCPChatInterfaceProps {
 }
 
 /**
- * MCPChatInterface - A component for interacting with the MCP agent protocol
- * This implementation follows the Anthropic Model Control Protocol standards
+ * MCPChatInterface - A component for interacting with the AI booking assistant
+ * This provides a chat interface for users to book restaurant reservations
  */
 const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
   const [messages, setMessages] = useState<MCPMessage[]>([]);
@@ -31,10 +31,10 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { openBookingModal } = useBooking();
   
-  // Initialize MCP agent when restaurants are available
+  // Initialize AI assistant when restaurants are available
   useEffect(() => {
     if (restaurants.length > 0 && !mcpAgent) {
-      console.log('Initializing MCP agent with', restaurants.length, 'restaurants');
+      console.log('Initializing AI assistant with', restaurants.length, 'restaurants');
       const agent = new MCPAgent(restaurants);
       setMcpAgent(agent);
       setMessages(agent.getMessages());
@@ -55,11 +55,11 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
     setInputValue('');
     
     try {
-      // Process the message using the MCP agent
+      // Process the message using the AI assistant
       const updatedMessages = await mcpAgent.processUserMessage(inputValue);
       setMessages(updatedMessages);
     } catch (error) {
-      console.error('Error processing message with MCP agent:', error);
+      console.error('Error processing message with AI assistant:', error);
       
       // Add error message
       setMessages(prev => [
