@@ -441,6 +441,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // MCP Tools endpoint
+  app.get("/api/mcp/tools", async (_req: Request, res: Response) => {
+    try {
+      const service = aiService.getService();
+      
+      if (!service || !service.getMcpTools) {
+        return res.json({ tools: [] });
+      }
+      
+      const tools = await service.getMcpTools();
+      res.json({ tools });
+    } catch (error) {
+      console.error("Error fetching MCP tools:", error);
+      res.status(500).json({ error: "Failed to fetch MCP tools", tools: [] });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }
