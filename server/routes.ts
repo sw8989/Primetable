@@ -403,20 +403,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (service) {
           if (isMcpRequest && service.processMcpChat) {
             // Use MCP protocol with message history
-            console.log('Using MCP chat protocol with message history');
+            console.log('Using MCP chat protocol with message history', { 
+              service: service.name || 'unknown',
+              messageCount: messages.length,
+              context: context.substring(0, 50) + '...'
+            });
             const mcpResponse = await service.processMcpChat(messages, context, restaurant);
+            console.log('MCP response:', JSON.stringify(mcpResponse).substring(0, 100) + '...');
             return res.json(mcpResponse); 
           } else if (service.processChat) {
             // Fallback to standard chat interface
-            console.log('Using OpenAI processChat with message:', message.substring(0, 50) + '...');
+            console.log('Using standard chat interface with service:', service.name || 'unknown');
             response = await service.processChat(message, context);
+            console.log('Chat response:', response.substring(0, 100) + '...');
           } else {
             console.log('No chat processing available');
-            response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants like Chiltern Firehouse, The Clove Club, and others. You can try the MCP Booking Agent tab for a more interactive experience.";
+            response = "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?";
           }
         } else {
           console.log('Falling back to simulation mode - no AI service available');
-          response = "I'm operating in demonstration mode. For this demo, I would provide personalized booking advice for exclusive London restaurants. You can try the MCP Booking Agent tab for a more interactive experience.";
+          response = "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?";
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
@@ -427,7 +433,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           openAIError.status === 429 || 
           (openAIError.error && openAIError.error.code === 'insufficient_quota')
         ) {
-          response = "I apologize, but our AI service has reached its usage limit for now. The system is working in demonstration mode. Please try the MCP Booking Agent tab for a more interactive booking experience.";
+          response = "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance.";
         } else {
           response = "I encountered an issue processing your request. Please try again later.";
         }
