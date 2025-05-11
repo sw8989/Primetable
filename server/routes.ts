@@ -602,29 +602,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           console.log(`Processing FireCrawl search for: ${query}`);
           
-          // Simulate a search response
-          const simulatedResponse = {
-            success: true,
-            results: [
-              {
-                title: `${query} - Restaurant Information (FireCrawl)`,
-                link: `https://example.com/restaurants/${query.toLowerCase().replace(/\s+/g, '-')}`,
-                snippet: `${query} is an exclusive restaurant in London with impeccable service and atmosphere. Book in advance to secure your table.`
-              },
-              {
-                title: `Reviews for ${query} - London's Top Dining Guide`,
-                link: `https://example.com/reviews/${query.toLowerCase().replace(/\s+/g, '-')}`,
-                snippet: `${query} has received critical acclaim for its innovative menu and attention to detail. Opening hours and contact information available.`
-              },
-              {
-                title: `${query} - Reservations and Booking Information`,
-                link: `https://example.com/booking/${query.toLowerCase().replace(/\s+/g, '-')}`,
-                snippet: `Make a reservation at ${query}. Tables are highly sought after and typically booked 30-90 days in advance. Private dining options available.`
-              }
-            ]
-          };
+          // Check if we should use simulation mode
+          const useSimulation = !apiKey || process.env.SIMULATION_MODE === 'true';
           
-          return res.json(simulatedResponse);
+          if (useSimulation) {
+            console.log('Using simulation mode for FireCrawl search');
+            // Simulate a search response
+            const simulatedResponse = {
+              success: true,
+              results: [
+                {
+                  title: `${query} - Restaurant Information (FireCrawl)`,
+                  link: `https://example.com/restaurants/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                  snippet: `${query} is an exclusive restaurant in London with impeccable service and atmosphere. Book in advance to secure your table.`
+                },
+                {
+                  title: `Reviews for ${query} - London's Top Dining Guide`,
+                  link: `https://example.com/reviews/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                  snippet: `${query} has received critical acclaim for its innovative menu and attention to detail. Opening hours and contact information available.`
+                },
+                {
+                  title: `${query} - Reservations and Booking Information`,
+                  link: `https://example.com/booking/${query.toLowerCase().replace(/\s+/g, '-')}`,
+                  snippet: `Make a reservation at ${query}. Tables are highly sought after and typically booked 30-90 days in advance. Private dining options available.`
+                }
+              ],
+              simulation: true
+            };
+            
+            return res.json(simulatedResponse);
+          }
+          
+          // Call the actual FireCrawl API
+          console.log('Calling real FireCrawl API for search');
+          
+          // Send request to FireCrawl API
+          const fireCrawlResponse = await fetch('https://api.firecrawl.dev/search', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({
+              query,
+              limit: limit || 5
+            })
+          });
+          
+          if (!fireCrawlResponse.ok) {
+            const errorText = await fireCrawlResponse.text();
+            console.error(`FireCrawl API error: ${fireCrawlResponse.status} - ${errorText}`);
+            throw new Error(`FireCrawl API returned ${fireCrawlResponse.status}: ${errorText}`);
+          }
+          
+          const fireCrawlData = await fireCrawlResponse.json();
+          
+          // Format the response for our frontend
+          return res.json({
+            success: true,
+            results: fireCrawlData.results || []
+          });
         } catch (searchError: any) {
           console.error('FireCrawl search error:', searchError);
           return res.status(500).json({
@@ -649,18 +686,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         try {
           console.log(`Processing FireCrawl scrape for: ${url}`);
           
-          // Simulate a scrape response
-          const simulatedResponse = {
+          // Check if we should use simulation mode
+          const useSimulation = !apiKey || process.env.SIMULATION_MODE === 'true';
+          
+          if (useSimulation) {
+            console.log('Using simulation mode for FireCrawl scrape');
+            // Simulate a scrape response
+            const simulatedResponse = {
+              success: true,
+              results: [
+                {
+                  url,
+                  content: `This is simulated content for ${url} from FireCrawl. The restaurant offers a menu that changes seasonally with a focus on local ingredients. Reservations can be made online or by phone. Opening hours are Tuesday-Sunday, 6PM-11PM.`
+                }
+              ],
+              simulation: true
+            };
+            
+            return res.json(simulatedResponse);
+          }
+          
+          // Call the actual FireCrawl API
+          console.log('Calling real FireCrawl API for scrape');
+          
+          // Send request to FireCrawl API
+          const fireCrawlResponse = await fetch('https://api.firecrawl.dev/scrape', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${apiKey}`
+            },
+            body: JSON.stringify({ url })
+          });
+          
+          if (!fireCrawlResponse.ok) {
+            const errorText = await fireCrawlResponse.text();
+            console.error(`FireCrawl API error: ${fireCrawlResponse.status} - ${errorText}`);
+            throw new Error(`FireCrawl API returned ${fireCrawlResponse.status}: ${errorText}`);
+          }
+          
+          const fireCrawlData = await fireCrawlResponse.json();
+          
+          // Format the response for our frontend
+          return res.json({
             success: true,
             results: [
               {
                 url,
-                content: `This is simulated content for ${url} from FireCrawl. The restaurant offers a menu that changes seasonally with a focus on local ingredients. Reservations can be made online or by phone. Opening hours are Tuesday-Sunday, 6PM-11PM.`
+                content: fireCrawlData.content || 'No content extracted'
               }
             ]
-          };
-          
-          return res.json(simulatedResponse);
+          });
         } catch (scrapeError: any) {
           console.error('FireCrawl scrape error:', scrapeError);
           return res.status(500).json({
