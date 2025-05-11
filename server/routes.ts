@@ -1053,6 +1053,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           // Create booking request for the MCP service
           const mcpBookingRequest = {
+            restaurantId: restaurant.id,
+            userId: 1, // Default user ID for testing
             date: bookingDate,
             time: req.body.time,
             partySize: parseInt(req.body.partySize),

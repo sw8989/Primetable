@@ -1,88 +1,42 @@
 /**
- * Booking service interfaces
+ * Booking Interfaces
  * 
- * Defines the common interface that all booking platform services must implement
+ * Common interfaces used across different booking service implementations
  */
+
 import { Restaurant } from '@shared/schema';
 
+// Request for booking a table
 export interface BookingRequest {
   restaurantId: number;
+  userId: number;
   date: Date;
   time: string;
   partySize: number;
-  name: string;
-  email: string;
-  phone: string;
   specialRequests?: string;
+  // Extended properties for user details
+  name?: string;
+  email?: string;
+  phone?: string;
+  // Optional flags for booking behavior
+  priorityBooking?: boolean;
+  acceptSimilarTimes?: boolean;
+  autoConfirm?: boolean;
+  useRealScraping?: boolean;
 }
 
+// Result of a booking attempt
 export interface BookingResult {
   success: boolean;
-  status: 'pending' | 'confirmed' | 'failed';
+  status?: 'pending' | 'confirmed' | 'failed';
+  error?: string;
   confirmationCode?: string;
   bookingUrl?: string;
-  error?: string;
-  logs: string[];
+  logs?: string[];
   simulation?: boolean;
 }
 
+// Interface that all booking platform services must implement
 export interface BookingPlatformService {
-  /**
-   * Book a table at the specified restaurant
-   */
   bookTable(restaurant: Restaurant, request: BookingRequest): Promise<BookingResult>;
-  
-  /**
-   * Check availability for a specific date
-   */
-  checkAvailability?(restaurant: Restaurant, date: Date, partySize: number): Promise<string[]>;
-  
-  /**
-   * Get information about the booking platform structure
-   */
-  getPlatformInfo?(restaurantId: string): Promise<Record<string, any>>;
-}
-
-export interface PlatformDetails {
-  // Common details
-  platformName: string;
-  releasePattern: string;
-  advanceDays: number;
-  releaseTime?: string;
-  
-  // OpenTable specific
-  restaurantPath?: string;
-  
-  // Resy specific
-  venueId?: string;
-  
-  // SevenRooms specific
-  venueCode?: string;
-  
-  // Tock specific
-  ticketGroupId?: string;
-}
-
-export interface BookingSelectors {
-  // Date selection
-  dateSelector: string;
-  dateNextButton?: string;
-  dateAvailableClass?: string;
-  
-  // Time selection
-  timeSelector: string;
-  timeAvailableClass?: string;
-  
-  // Party size 
-  partySizeSelector: string;
-  
-  // Form elements
-  nameSelector: string;
-  emailSelector: string;
-  phoneSelector: string;
-  specialRequestsSelector?: string;
-  submitButtonSelector: string;
-  
-  // Confirmation
-  confirmationSelector?: string;
 }

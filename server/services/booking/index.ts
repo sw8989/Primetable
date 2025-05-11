@@ -1,109 +1,112 @@
 /**
  * Booking Service Orchestrator
  * 
- * Central service that manages booking requests and delegates to the appropriate
- * platform-specific implementation based on the restaurant's booking platform.
+ * This service coordinates between different booking platforms and provides
+ * a unified interface for booking tables at restaurants.
  */
 
 import { Restaurant } from '@shared/schema';
 import { BookingPlatformService, BookingRequest, BookingResult } from './interfaces';
-import { OpenTableBookingService } from './opentable';
 import { config } from '../../config';
 
-// Import the MCP implementation
-import { OpenTableMCPService } from './openTableMcp';
-
-// Map of platform names to their service implementations
-const bookingServices: Record<string, BookingPlatformService> = {
-  'OpenTable': new OpenTableMCPService(), // Using the MCP version
-  // Add other platforms as they are implemented
-  // 'Resy': new ResyBookingService(),
-  // 'SevenRooms': new SevenRoomsBookingService(),
-  // 'Tock': new TockBookingService(),
-};
-
-export class BookingServiceOrchestrator {
-  private simulationMode: boolean;
-  private defaultService: BookingPlatformService;
+class BookingService {
+  private platforms: Map<string, BookingPlatformService> = new Map();
   
-  constructor() {
-    this.simulationMode = process.env.SIMULATION_MODE === 'true' || !config.bookingAgent.enableRealBooking;
-    this.defaultService = new OpenTableBookingService(); // Default to OpenTable for now
-    
-    console.log(`BookingServiceOrchestrator initialized, simulation mode: ${this.simulationMode}`);
+  // Register a specific booking platform service
+  registerPlatform(platformName: string, service: BookingPlatformService) {
+    this.platforms.set(platformName.toLowerCase(), service);
   }
   
-  /**
-   * Book a table, using the appropriate service based on the restaurant's platform
-   */
-  async bookTable(restaurant: Restaurant, bookingRequest: BookingRequest): Promise<BookingResult> {
-    if (!restaurant) {
-      return {
-        success: false,
-        status: 'failed',
-        error: 'Restaurant not found',
-        logs: [`[${new Date().toISOString()}] Restaurant not found`]
-      };
-    }
-    
-    console.log(`Processing booking request for ${restaurant.name} on platform ${restaurant.bookingPlatform}`);
-    
-    // Get the appropriate booking service
-    const bookingService = this.getBookingService(restaurant.bookingPlatform);
-    if (!bookingService) {
-      return {
-        success: false,
-        status: 'failed',
-        error: `Booking platform '${restaurant.bookingPlatform}' not supported`,
-        logs: [`[${new Date().toISOString()}] Booking platform '${restaurant.bookingPlatform}' not supported`]
-      };
-    }
-    
+  // Book a table at a restaurant
+  async bookTable(restaurant: Restaurant, request: BookingRequest): Promise<BookingResult> {
     try {
-      // Delegate to the platform-specific implementation
-      return await bookingService.bookTable(restaurant, bookingRequest);
-    } catch (error: any) {
+      // Determine the platform to use
+      const platformName = restaurant.bookingPlatform || 'OpenTable';
+      
+      // Get the platform service
+      const platformService = this.platforms.get(platformName.toLowerCase());
+      
+      // If we have a service for this platform, use it
+      if (platformService) {
+        return await platformService.bookTable(restaurant, request);
+      }
+      
+      // If we're simulating or using a fallback, return a simulated result
+      if (config.simulationMode) {
+        console.log(`Simulating booking for ${restaurant.name} on ${platformName}`);
+        
+        return {
+          success: true,
+          status: 'pending',
+          confirmationCode: `SIM-${Math.floor(Math.random() * 1000000)}`,
+          simulation: true,
+          logs: [
+            `[Simulation] Started booking process for ${restaurant.name}`,
+            `[Simulation] Using ${platformName} platform`,
+            `[Simulation] Booking successful (simulated)`,
+          ]
+        };
+      }
+      
+      // No service found and not simulating
       return {
         success: false,
         status: 'failed',
-        error: `Booking error: ${error.message || error}`,
-        logs: [`[${new Date().toISOString()}] Booking error: ${error.message || error}`]
+        error: `No booking service available for platform: ${platformName}`,
+        logs: [
+          `Failed to book table: No service for ${platformName} platform`,
+          `Consider adding a booking service for ${platformName}`
+        ]
+      };
+    } catch (error: any) {
+      console.error('Error in booking service:', error);
+      
+      return {
+        success: false,
+        status: 'failed',
+        error: error.message || 'Unknown error occurred during booking',
+        logs: error.logs || ['An unexpected error occurred during booking']
       };
     }
   }
   
-  /**
-   * Get the appropriate booking service for the given platform
-   */
-  private getBookingService(platformName: string): BookingPlatformService | null {
-    // Handle case differences
-    const normalizedPlatform = platformName?.trim().toLowerCase();
-    
-    // Look for an exact match
-    for (const [platform, service] of Object.entries(bookingServices)) {
-      if (platform.toLowerCase() === normalizedPlatform) {
-        return service;
-      }
-    }
-    
-    // If not found, but we have a default, use it
-    if (this.defaultService) {
-      console.log(`No service found for platform '${platformName}', using default service`);
-      return this.defaultService;
-    }
-    
-    return null;
+  // Check if a booking platform is supported
+  isPlatformSupported(platformName: string): boolean {
+    return this.platforms.has(platformName.toLowerCase());
   }
   
-  /**
-   * Update platform-specific details for a restaurant
-   */
-  async updatePlatformDetails(restaurant: Restaurant): Promise<boolean> {
-    // This method would be implemented to update platform-specific details
-    // by scraping the restaurant's booking page
-    return true;
+  // Get all supported platforms
+  getSupportedPlatforms(): string[] {
+    return Array.from(this.platforms.keys());
   }
 }
 
-// Export a singleton instance
-export const bookingService = new BookingServiceOrchestrator();
+// Create and export the singleton instance
+export const bookingService = new BookingService();
+
+// Register platform services
+// This will be done dynamically as services are imported
+
+// Auto-initialize with some standard services
+export const initializeBookingServices = async () => {
+  try {
+    const { OpenTableService } = await import('./opentable');
+    bookingService.registerPlatform('OpenTable', new OpenTableService());
+    
+    // Try to load the MCP service if available
+    try {
+      const { OpenTableMCPService } = await import('./openTableMcp');
+      bookingService.registerPlatform('OpenTableMCP', new OpenTableMCPService());
+    } catch (error) {
+      console.log('OpenTable MCP service not available, skipping');
+    }
+    
+    // Add more platforms as they become available
+    console.log(`Booking service initialized with platforms: ${bookingService.getSupportedPlatforms().join(', ')}`);
+  } catch (error) {
+    console.error('Error initializing booking services:', error);
+  }
+};
+
+// Initialize services
+initializeBookingServices();

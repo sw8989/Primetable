@@ -84,6 +84,9 @@ export const bookings = pgTable("bookings", {
   status: text("status").notNull(), // pending, confirmed, cancelled, completed
   platformBookingId: text("platform_booking_id"),
   agentStatus: text("agent_status").notNull(), // active, success, failed
+  agentType: text("agent_type").default("standard"), // standard, ai, mcp
+  confirmationCode: text("confirmation_code"),
+  bookingPlatform: text("booking_platform").default("OpenTable"),
   agentLog: jsonb("agent_log").$type<AgentLogEntry[]>().default([]),
   confirmed: boolean("confirmed").default(false),
   priorityBooking: boolean("priority_booking").default(false),
@@ -102,6 +105,9 @@ export const insertBookingSchema = createInsertSchema(bookings).pick({
   status: true,
   platformBookingId: true,
   agentStatus: true,
+  agentType: true,
+  confirmationCode: true,
+  bookingPlatform: true,
   agentLog: true,
   priorityBooking: true, 
   acceptSimilarTimes: true,
