@@ -10,9 +10,12 @@ import { BookingPlatformService, BookingRequest, BookingResult } from './interfa
 import { OpenTableBookingService } from './opentable';
 import { config } from '../../config';
 
+// Import the MCP implementation
+import { OpenTableMCPService } from './openTableMcp';
+
 // Map of platform names to their service implementations
 const bookingServices: Record<string, BookingPlatformService> = {
-  'OpenTable': new OpenTableBookingService(),
+  'OpenTable': new OpenTableMCPService(), // Using the MCP version
   // Add other platforms as they are implemented
   // 'Resy': new ResyBookingService(),
   // 'SevenRooms': new SevenRoomsBookingService(),
