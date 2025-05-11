@@ -6,6 +6,9 @@
  */
 
 export const config = {
+  // Global simulation mode - set to true to prevent real API calls
+  simulationMode: process.env.SIMULATION_MODE === 'true',
+
   // Booking agent configuration
   bookingAgent: {
     // Enable real web scraping capabilities

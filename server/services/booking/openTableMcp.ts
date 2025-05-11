@@ -1,221 +1,169 @@
 /**
- * OpenTable booking service using MCP Puppeteer
- * 
- * Uses Smithery's Puppeteer Browser MCP tool to automate OpenTable bookings
+ * OpenTable MCP Service
+ *
+ * This service handles OpenTable bookings using browser automation via Puppeteer
+ * and the Model Context Protocol (MCP) standard.
  */
 
 import { Restaurant } from '@shared/schema';
+import { BookingRequest, BookingResult, BookingPlatformService } from './interfaces';
 import { config } from '../../config';
-import { BookingPlatformService, BookingRequest, BookingResult } from './interfaces';
-import { puppeteerMCP } from '../mcp/puppeteerService';
+
+// Import puppeteer when available
+let puppeteer: any;
+try {
+  puppeteer = require('puppeteer');
+} catch (error) {
+  console.log('Puppeteer not available, will use simulation mode');
+}
 
 export class OpenTableMCPService implements BookingPlatformService {
-  private logs: string[] = [];
-  private simulationMode: boolean;
+  private simulation: boolean;
 
   constructor() {
-    this.simulationMode = process.env.SIMULATION_MODE === 'true' || !config.bookingAgent.enableRealBooking;
-    this.logs.push(`[${new Date().toISOString()}] OpenTable MCP booking service initialized`);
-    
-    if (this.simulationMode) {
-      this.logs.push(`[${new Date().toISOString()}] Running in simulation mode`);
-    }
+    // Determine if we're in simulation mode
+    this.simulation = config.simulationMode || !puppeteer;
+    console.log(`OpenTable MCP Service initialized (simulation mode: ${this.simulation})`);
   }
 
-  /**
-   * Book a table on OpenTable using MCP Puppeteer
-   */
   async bookTable(restaurant: Restaurant, request: BookingRequest): Promise<BookingResult> {
-    this.logs = [];
-    this.logs.push(`[${new Date().toISOString()}] Starting OpenTable MCP booking for ${restaurant.name}`);
+    console.log(`Booking table at ${restaurant.name} via OpenTable MCP`);
+    const logs: string[] = [];
+    logs.push(`Starting booking process for ${restaurant.name} at ${request.time} for ${request.partySize} people`);
     
-    // Check if we're in simulation mode
-    if (this.simulationMode) {
-      return this.simulateBooking(restaurant, request);
-    }
-    
-    try {
-      // Construct the booking URL
-      let bookingUrl = restaurant.bookingUrl;
+    // Add details about simulation status
+    if (this.simulation) {
+      logs.push(`Running in simulation mode - no real bookings will be made`);
       
-      // If no direct booking URL, construct one from the platformId
-      if (!bookingUrl && restaurant.platformId) {
-        bookingUrl = `https://www.opentable.com/restaurant/profile/${restaurant.platformId}`;
-      }
-      
-      if (!bookingUrl) {
-        throw new Error('No booking URL available for this restaurant');
-      }
-      
-      // Open the restaurant page
-      this.logs.push(`[${new Date().toISOString()}] Navigating to ${bookingUrl}`);
-      const browseResult = await puppeteerMCP.browse(bookingUrl);
-      
-      if (!browseResult.success) {
-        throw new Error(`Failed to open restaurant page: ${browseResult.error}`);
-      }
-      
-      const page = browseResult.page;
-      
-      // Extract booking selectors from restaurant data or use defaults
-      const selectors = this.getBookingSelectors(restaurant);
-      
-      // Step 1: Select party size
-      this.logs.push(`[${new Date().toISOString()}] Selecting party size: ${request.partySize}`);
-      await puppeteerMCP.waitForSelector(page, selectors.partySizeSelector);
-      await puppeteerMCP.select(page, selectors.partySizeSelector, request.partySize.toString());
-      
-      // Step 2: Select date
-      this.logs.push(`[${new Date().toISOString()}] Selecting date: ${request.date.toLocaleDateString()}`);
-      // Open the date picker
-      await puppeteerMCP.click(page, selectors.dateSelector);
-      
-      // Navigate to the right month if needed
-      const targetMonth = request.date.getMonth();
-      const targetYear = request.date.getFullYear();
-      const targetDay = request.date.getDate();
-      
-      // Wait for the current month to be visible
-      await puppeteerMCP.waitForSelector(page, '.datepicker__month');
-      
-      // TODO: Navigate to the right month
-      
-      // Click on the target date
-      const dateSelector = `.datepicker__day[data-date="${targetDay}"]`;
-      await puppeteerMCP.waitForSelector(page, dateSelector);
-      await puppeteerMCP.click(page, dateSelector);
-      
-      // Step 3: Select time
-      this.logs.push(`[${new Date().toISOString()}] Selecting time: ${request.time}`);
-      // Wait for time slots to load
-      await puppeteerMCP.waitForSelector(page, selectors.timeSelector);
-      
-      // Find the closest time slot
-      const targetTime = request.time.replace(':', '');
-      const timeSelector = `${selectors.timeSelector}[data-time="${targetTime}"]`;
-      await puppeteerMCP.waitForSelector(page, timeSelector);
-      await puppeteerMCP.click(page, timeSelector);
-      
-      // Step 4: Fill in contact information
-      this.logs.push(`[${new Date().toISOString()}] Filling contact information`);
-      await puppeteerMCP.waitForSelector(page, selectors.nameSelector);
-      await puppeteerMCP.type(page, selectors.nameSelector, request.name);
-      await puppeteerMCP.type(page, selectors.emailSelector, request.email);
-      await puppeteerMCP.type(page, selectors.phoneSelector, request.phone);
-      
-      if (request.specialRequests && selectors.specialRequestsSelector) {
-        await puppeteerMCP.type(page, selectors.specialRequestsSelector, request.specialRequests);
-      }
-      
-      // Step 5: Take a screenshot for verification
-      this.logs.push(`[${new Date().toISOString()}] Taking screenshot for verification`);
-      const screenshotResult = await puppeteerMCP.screenshot(page);
-      
-      if (screenshotResult.success && screenshotResult.data) {
-        this.logs.push(`[${new Date().toISOString()}] Screenshot captured successfully`);
-      }
-      
-      // Step A6: Submit the booking form
-      this.logs.push(`[${new Date().toISOString()}] Submitting booking`);
-      await puppeteerMCP.click(page, selectors.submitButtonSelector);
-      
-      // Wait for confirmation page
-      await puppeteerMCP.waitForSelector(page, selectors.confirmationSelector || '.confirmation-page');
-      
-      // Extract confirmation code if available
-      // This would be customized based on OpenTable's confirmation page structure
-      
+      // Return simulated success
       return {
         success: true,
         status: 'pending',
-        confirmationCode: `OT-${Math.floor(1000000 + Math.random() * 9000000)}`,
-        bookingUrl: bookingUrl,
-        logs: this.logs
+        confirmationCode: `SIM-${Math.floor(1000000 + Math.random() * 9000000)}`,
+        logs,
+        simulation: true
       };
+    }
+    
+    try {
+      // Format date for URL
+      const dateStr = new Date(request.date).toISOString().split('T')[0];
+      
+      // Get the booking URL
+      const bookingUrl = restaurant.bookingUrl || 
+        `https://www.opentable.com/restaurant/profile/${restaurant.platformId}/reserve?dateTime=${dateStr}T${request.time}&covers=${request.partySize}`;
+      
+      logs.push(`Opening browser to ${bookingUrl}`);
+      
+      // Launch the browser
+      const browser = await puppeteer.launch({
+        headless: 'new',
+        args: ['--no-sandbox', '--disable-setuid-sandbox']
+      });
+      
+      const page = await browser.newPage();
+      
+      // Set user agent to avoid detection
+      await page.setUserAgent('Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36');
+      
+      // Navigate to the booking page
+      logs.push(`Navigating to OpenTable booking page`);
+      await page.goto(bookingUrl, { waitUntil: 'networkidle2', timeout: 30000 });
+      
+      // Wait for page to load
+      await page.waitForSelector('body', { timeout: 10000 });
+      
+      // Take screenshot for debugging
+      const screenshot = await page.screenshot({ encoding: 'base64' });
+      logs.push(`Page loaded - screenshot captured`);
+      
+      // Check if we need to select a time slot
+      const timeSlotSelector = '.timeslot-btn';
+      const hasTimeSlots = await page.$(timeSlotSelector) !== null;
+      
+      if (hasTimeSlots) {
+        logs.push(`Time slot selection page detected`);
+        
+        // Find and click the appropriate time slot
+        const timeSlotElements = await page.$$(timeSlotSelector);
+        
+        if (timeSlotElements.length > 0) {
+          logs.push(`Found ${timeSlotElements.length} available time slots`);
+          
+          // Click the first time slot
+          await timeSlotElements[0].click();
+          logs.push(`Selected first available time slot`);
+          
+          // Wait for navigation
+          await page.waitForNavigation({ waitUntil: 'networkidle2', timeout: 10000 });
+        } else {
+          logs.push(`No time slots available for the requested date/time`);
+          await browser.close();
+          
+          return {
+            success: false,
+            status: 'failed',
+            error: 'No available times for the requested date',
+            logs
+          };
+        }
+      }
+      
+      // Fill out the form
+      logs.push(`Filling out reservation details`);
+      
+      // Fill name
+      if (request.name) {
+        await page.type('input[name="firstName"], input#FirstName', request.name.split(' ')[0] || '');
+        await page.type('input[name="lastName"], input#LastName', request.name.split(' ')[1] || '');
+        logs.push(`Entered name: ${request.name}`);
+      }
+      
+      // Fill email
+      if (request.email) {
+        await page.type('input[name="email"], input#Email', request.email);
+        logs.push(`Entered email: ${request.email}`);
+      }
+      
+      // Fill phone
+      if (request.phone) {
+        await page.type('input[name="phoneNumber"], input#Phone', request.phone);
+        logs.push(`Entered phone: ${request.phone}`);
+      }
+      
+      // Add special requests if provided
+      if (request.specialRequests) {
+        await page.type('textarea[name="notes"], textarea#SpecialRequests', request.specialRequests);
+        logs.push(`Added special requests`);
+      }
+      
+      // Complete the booking form but don't submit in test mode
+      logs.push(`Reservation form completed successfully`);
+      
+      // Close the browser
+      await browser.close();
+      logs.push(`Browser session closed`);
+      
+      // Return success but in test mode
+      return {
+        success: true,
+        status: 'pending',
+        confirmationCode: `TEST-${Math.floor(1000000 + Math.random() * 9000000)}`,
+        logs,
+        simulation: true, // Still mark as simulation since we don't actually submit
+        bookingUrl
+      };
+      
     } catch (error: any) {
-      this.logs.push(`[${new Date().toISOString()}] Booking error: ${error.message || error}`);
+      console.error('Error in OpenTable MCP booking:', error);
+      logs.push(`Error: ${error.message}`);
       
       return {
         success: false,
         status: 'failed',
-        error: `Booking failed: ${error.message || error}`,
-        logs: this.logs
+        error: `OpenTable MCP booking failed: ${error.message}`,
+        logs
       };
     }
-  }
-  
-  /**
-   * Simulate the booking process
-   */
-  private async simulateBooking(restaurant: Restaurant, request: BookingRequest): Promise<BookingResult> {
-    this.logs.push(`[${new Date().toISOString()}] SIMULATION MODE: Running simulated booking process`);
-    this.logs.push(`[${new Date().toISOString()}] Simulating OpenTable MCP booking for ${restaurant.name}`);
-    
-    // Simulate typical booking steps with delays
-    this.logs.push(`[${new Date().toISOString()}] Simulating navigation to booking page`);
-    await this.delay(500);
-    this.logs.push(`[${new Date().toISOString()}] Simulated step completed: Initial restaurant page`);
-    
-    await this.delay(300);
-    this.logs.push(`[${new Date().toISOString()}] Simulated step completed: Date selection calendar`);
-    
-    await this.delay(300);
-    this.logs.push(`[${new Date().toISOString()}] Simulated step completed: Time selection screen`);
-    
-    await this.delay(300);
-    this.logs.push(`[${new Date().toISOString()}] Simulated step completed: Contact information form`);
-    
-    const formattedDate = this.formatDate(request.date);
-    this.logs.push(`[${new Date().toISOString()}] Simulating date selection: ${formattedDate}`);
-    this.logs.push(`[${new Date().toISOString()}] Simulating time selection: ${request.time}`);
-    this.logs.push(`[${new Date().toISOString()}] Simulating party size selection: ${request.partySize} people`);
-    this.logs.push(`[${new Date().toISOString()}] Simulating contact information input`);
-    this.logs.push(`[${new Date().toISOString()}] Simulating booking form completion`);
-    
-    // Simulate success
-    this.logs.push(`[${new Date().toISOString()}] Simulation completed successfully`);
-    
-    return {
-      success: true,
-      status: 'pending',
-      confirmationCode: `OT-SIM-${Math.floor(1000000 + Math.random() * 9000000)}`,
-      logs: this.logs,
-      simulation: true
-    };
-  }
-  
-  /**
-   * Get the appropriate CSS selectors for OpenTable
-   */
-  private getBookingSelectors(restaurant: Restaurant): Record<string, string> {
-    // Use restaurant-specific selectors if available
-    if (restaurant.bookingSelectors) {
-      return restaurant.bookingSelectors as Record<string, string>;
-    }
-    
-    // Otherwise use default OpenTable selectors
-    return {
-      dateSelector: '.datepicker__calendar',
-      dateNextButton: '.datepicker__month-button--next',
-      dateAvailableClass: '.datepicker__day--available',
-      timeSelector: '.time-slot',
-      timeAvailableClass: '.time-slot--available',
-      partySizeSelector: '.party-size-selector',
-      nameSelector: '#form-field-firstName',
-      emailSelector: '#form-field-email',
-      phoneSelector: '#form-field-phoneNumber',
-      specialRequestsSelector: '#form-field-specialRequests',
-      submitButtonSelector: '.booking-form__submit-button',
-      confirmationSelector: '.confirmation-page'
-    };
-  }
-  
-  private async delay(ms: number): Promise<void> {
-    return new Promise(resolve => setTimeout(resolve, ms));
-  }
-  
-  private formatDate(date: Date): string {
-    // Format date as M/D/YYYY
-    return `${date.getMonth() + 1}/${date.getDate()}/${date.getFullYear()}`;
   }
 }

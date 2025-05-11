@@ -1,343 +1,366 @@
-import { useState } from 'react';
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Button } from '@/components/ui/button';
-import { Form, FormField, FormItem, FormLabel, FormControl, FormMessage } from '@/components/ui/form';
-import { Input } from '@/components/ui/input';
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
+import React, { useState } from 'react';
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Label } from "@/components/ui/label";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from '@/lib/queryClient';
+import { Checkbox } from '@/components/ui/checkbox';
+import { Textarea } from '@/components/ui/textarea';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 
-const formSchema = z.object({
-  restaurantName: z.string().min(2, { message: 'Please enter a restaurant name' }),
-  date: z.string().min(1, { message: 'Please select a date' }),
-  time: z.string().min(1, { message: 'Please select a time' }),
-  partySize: z.string().min(1, { message: 'Please select party size' }),
-  name: z.string().min(2, { message: 'Please enter your name' }),
-  email: z.string().email({ message: 'Please enter a valid email' }),
-  phone: z.string().min(5, { message: 'Please enter a valid phone number' }),
-  specialRequests: z.string().optional(),
-});
+// Date picker components
+import { format } from "date-fns";
+import { Calendar } from "@/components/ui/calendar";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { CalendarIcon } from "lucide-react";
+import { cn } from "@/lib/utils";
 
-export default function PuppeteerBookingTester() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [result, setResult] = useState<any>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string[]>([]);
-
-  const form = useForm<z.infer<typeof formSchema>>({
-    resolver: zodResolver(formSchema),
-    defaultValues: {
-      restaurantName: 'Chiltern Firehouse',
-      date: '2025-05-25',
-      time: '19:00',
-      partySize: '2',
-      name: 'John Smith',
-      email: 'test@example.com',
-      phone: '+44 7700 900123',
-      specialRequests: 'Window table if possible',
-    },
+export default function PuppeteerBookingTester({ restaurants }: { restaurants: any[] }) {
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [bookingResult, setBookingResult] = useState<any>(null);
+  
+  // Form state
+  const [formState, setFormState] = useState({
+    restaurantName: '',
+    platform: 'OpenTable',
+    date: new Date(),
+    time: '19:00',
+    partySize: 2,
+    name: '',
+    email: '',
+    phone: '',
+    specialRequests: '',
   });
-
-  const onSubmit = async (values: z.infer<typeof formSchema>) => {
-    setIsLoading(true);
-    setError(null);
-    setResult(null);
-    setLogs([]);
-
-    try {
-      // Get the restaurant details
-      const restaurantsResponse = await fetch('/api/restaurants');
-      const restaurants = await restaurantsResponse.json();
-      const restaurant = restaurants.find((r: any) => r.name === values.restaurantName);
-
-      if (!restaurant) {
-        throw new Error(`Restaurant "${values.restaurantName}" not found`);
-      }
-
-      const requestData = {
-        restaurantName: values.restaurantName,
-        platformId: restaurant.platformId || '',
-        platform: restaurant.bookingPlatform || 'OpenTable',
-        date: values.date,
-        time: values.time,
-        partySize: parseInt(values.partySize),
-        name: values.name,
-        email: values.email,
-        phone: values.phone,
-        specialRequests: values.specialRequests || '',
-        useMcpPuppeteer: true, // Flag to use Puppeteer MCP
-      };
-
-      const response = await fetch('/api/automated-booking', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Failed to process booking');
-      }
-
-      setResult(data);
-      if (data.logs) {
-        setLogs(data.logs);
-      }
-    } catch (err: any) {
-      console.error('Error in booking test:', err);
-      setError(err.message || 'An unexpected error occurred');
-    } finally {
-      setIsLoading(false);
+  
+  // Handle form changes
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+    const { name, value } = e.target;
+    setFormState(prev => ({ ...prev, [name]: value }));
+  };
+  
+  // Handle select changes
+  const handleSelectChange = (name: string, value: string) => {
+    setFormState(prev => ({ ...prev, [name]: value }));
+  };
+  
+  // Handle date selection
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date) {
+      setFormState(prev => ({ ...prev, date }));
     }
   };
-
+  
+  // Handle form submission
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setBookingResult(null);
+    
+    try {
+      // Check if required fields are filled
+      if (!formState.restaurantName || !formState.platform || !formState.time) {
+        toast({
+          title: "Missing information",
+          description: "Please fill out all required fields.",
+          variant: "destructive"
+        });
+        setLoading(false);
+        return;
+      }
+      
+      // Find the restaurant details
+      const selectedRestaurant = restaurants.find(r => r.name === formState.restaurantName);
+      
+      // Create booking request
+      const bookingRequest = {
+        restaurantName: formState.restaurantName,
+        platform: formState.platform,
+        platformId: selectedRestaurant?.platformId || '',
+        date: formState.date,
+        time: formState.time,
+        partySize: formState.partySize,
+        userName: formState.name,
+        userEmail: formState.email,
+        userPhone: formState.phone,
+        specialRequests: formState.specialRequests,
+        useMcpPuppeteer: true // Enable Puppeteer MCP mode
+      };
+      
+      // Call API to create booking
+      const response = await apiRequest('/api/automated-booking', {
+        method: 'POST',
+        body: JSON.stringify(bookingRequest)
+      });
+      
+      setBookingResult(response);
+      
+      toast({
+        title: response.success ? "Booking Test Successful" : "Booking Test Failed",
+        description: response.message || response.error || "No details available",
+        variant: response.success ? "default" : "destructive"
+      });
+      
+    } catch (error: any) {
+      console.error('Error in booking:', error);
+      
+      toast({
+        title: "Error Testing Booking",
+        description: error.message || "An unknown error occurred",
+        variant: "destructive"
+      });
+      
+      setBookingResult({
+        success: false,
+        error: error.message || "An unknown error occurred",
+      });
+    }
+    
+    setLoading(false);
+  };
+  
   return (
-    <div className="flex flex-col gap-4">
+    <div className="space-y-4">
       <Card>
         <CardHeader>
           <CardTitle>Puppeteer MCP Booking Test</CardTitle>
           <CardDescription>
-            Test automated booking using Smithery's Puppeteer MCP tool
+            Test browser automation booking using Puppeteer and Model Context Protocol
           </CardDescription>
         </CardHeader>
+        
         <CardContent>
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="restaurantName"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Restaurant</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Restaurant name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="partySize"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Party Size</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select party size" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {[1, 2, 3, 4, 5, 6, 7, 8].map((size) => (
-                            <SelectItem key={size} value={size.toString()}>
-                              {size} {size === 1 ? 'person' : 'people'}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="date"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Date</FormLabel>
-                      <FormControl>
-                        <Input type="date" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="time"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Time</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select time" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {[
-                            '17:00', '17:30', '18:00', '18:30', '19:00', 
-                            '19:30', '20:00', '20:30', '21:00', '21:30'
-                          ].map((time) => (
-                            <SelectItem key={time} value={time}>
-                              {time}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="restaurantName">Restaurant</Label>
+                <Select 
+                  value={formState.restaurantName} 
+                  onValueChange={value => handleSelectChange('restaurantName', value)}
+                >
+                  <SelectTrigger id="restaurantName">
+                    <SelectValue placeholder="Select a restaurant" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {restaurants.map(restaurant => (
+                      <SelectItem key={restaurant.id} value={restaurant.name}>
+                        {restaurant.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="platform">Booking Platform</Label>
+                <Select 
+                  value={formState.platform} 
+                  onValueChange={value => handleSelectChange('platform', value)}
+                >
+                  <SelectTrigger id="platform">
+                    <SelectValue placeholder="Select platform" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="OpenTable">OpenTable</SelectItem>
+                    <SelectItem value="Resy">Resy</SelectItem>
+                    <SelectItem value="SevenRooms">SevenRooms</SelectItem>
+                    <SelectItem value="Tock">Tock</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="date">Date</Label>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant={"outline"}
+                      className={cn(
+                        "w-full justify-start text-left font-normal",
+                        !formState.date && "text-muted-foreground"
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {formState.date ? format(formState.date, "PPP") : <span>Pick a date</span>}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0">
+                    <Calendar
+                      mode="single"
+                      selected={formState.date}
+                      onSelect={handleDateSelect}
+                      initialFocus
+                    />
+                  </PopoverContent>
+                </Popover>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="time">Time</Label>
+                <Select 
+                  value={formState.time} 
+                  onValueChange={value => handleSelectChange('time', value)}
+                >
+                  <SelectTrigger id="time">
+                    <SelectValue placeholder="Select time" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="12:00">12:00 PM</SelectItem>
+                    <SelectItem value="12:30">12:30 PM</SelectItem>
+                    <SelectItem value="13:00">1:00 PM</SelectItem>
+                    <SelectItem value="13:30">1:30 PM</SelectItem>
+                    <SelectItem value="18:00">6:00 PM</SelectItem>
+                    <SelectItem value="18:30">6:30 PM</SelectItem>
+                    <SelectItem value="19:00">7:00 PM</SelectItem>
+                    <SelectItem value="19:30">7:30 PM</SelectItem>
+                    <SelectItem value="20:00">8:00 PM</SelectItem>
+                    <SelectItem value="20:30">8:30 PM</SelectItem>
+                    <SelectItem value="21:00">9:00 PM</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="partySize">Party Size</Label>
+                <Select 
+                  value={String(formState.partySize)} 
+                  onValueChange={value => handleSelectChange('partySize', value)}
+                >
+                  <SelectTrigger id="partySize">
+                    <SelectValue placeholder="Select party size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6, 7, 8].map(size => (
+                      <SelectItem key={size} value={String(size)}>
+                        {size} {size === 1 ? 'person' : 'people'}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            
+            <div className="border-t pt-4 mt-4">
+              <h4 className="text-sm font-medium mb-2">Guest Information</h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="name">Full Name</Label>
+                  <Input 
+                    id="name"
+                    name="name"
+                    value={formState.name}
+                    onChange={handleChange}
+                    placeholder="John Smith"
+                  />
+                </div>
                 
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Your Name</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Full name" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="email"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Email</FormLabel>
-                      <FormControl>
-                        <Input type="email" placeholder="Email address" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Phone</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Phone number" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
+                <div className="space-y-2">
+                  <Label htmlFor="email">Email</Label>
+                  <Input 
+                    id="email"
+                    name="email"
+                    type="email"
+                    value={formState.email}
+                    onChange={handleChange}
+                    placeholder="john@example.com"
+                  />
+                </div>
+                
+                <div className="space-y-2">
+                  <Label htmlFor="phone">Phone</Label>
+                  <Input 
+                    id="phone"
+                    name="phone"
+                    value={formState.phone}
+                    onChange={handleChange}
+                    placeholder="+1 (555) 123-4567"
+                  />
+                </div>
+              </div>
+              
+              <div className="space-y-2 mt-4">
+                <Label htmlFor="specialRequests">Special Requests</Label>
+                <Textarea 
+                  id="specialRequests"
                   name="specialRequests"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Special Requests</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Any special requests (optional)" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
+                  value={formState.specialRequests}
+                  onChange={handleChange}
+                  placeholder="Add any special requests or notes for the restaurant"
+                  rows={3}
                 />
               </div>
-
-              <Button type="submit" disabled={isLoading}>
-                {isLoading ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Testing Booking...
-                  </>
-                ) : (
-                  'Test Booking with Puppeteer MCP'
-                )}
+            </div>
+            
+            <div className="pt-4">
+              <Button 
+                type="submit" 
+                className="w-full"
+                disabled={loading}
+              >
+                {loading ? "Testing Booking..." : "Test MCP Booking"}
               </Button>
-            </form>
-          </Form>
+            </div>
+          </form>
         </CardContent>
       </Card>
-
-      {error && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Error</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      )}
-
-      {result && (
+      
+      {bookingResult && (
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center">
-              {result.success ? (
-                <>
-                  <CheckCircle2 className="mr-2 h-5 w-5 text-green-500" />
-                  Booking Test Successful
-                </>
+            <CardTitle>
+              {bookingResult.success ? (
+                <span className="text-green-500">Booking Test Successful</span>
               ) : (
-                <>
-                  <AlertCircle className="mr-2 h-5 w-5 text-amber-500" />
-                  Booking Test Result
-                </>
+                <span className="text-red-500">Booking Test Failed</span>
               )}
             </CardTitle>
+            <CardDescription>
+              {bookingResult.simulation ? "Simulation Mode" : "Real Booking Mode"}
+            </CardDescription>
           </CardHeader>
+          
           <CardContent>
             <div className="space-y-2">
-              <p>
-                <strong>Status:</strong> {result.success ? 'Success' : 'Failed'}
-              </p>
-              {result.message && (
-                <p>
-                  <strong>Message:</strong> {result.message}
-                </p>
+              {bookingResult.message && (
+                <p className="text-sm">{bookingResult.message}</p>
               )}
-              {result.booking && (
-                <>
-                  <p>
-                    <strong>Booking ID:</strong> {result.booking.id}
-                  </p>
-                  <p>
-                    <strong>Restaurant:</strong> {result.booking.restaurantName}
-                  </p>
-                  <p>
-                    <strong>Date/Time:</strong> {result.booking.date} at {result.booking.time}
-                  </p>
-                  <p>
-                    <strong>Status:</strong> {result.booking.status}
-                  </p>
-                </>
+              
+              {bookingResult.booking && (
+                <div className="text-sm border rounded-md p-3 bg-muted/50">
+                  <p><strong>Restaurant:</strong> {bookingResult.booking.restaurantName}</p>
+                  <p><strong>Date/Time:</strong> {bookingResult.booking.date} at {bookingResult.booking.time}</p>
+                  <p><strong>Party Size:</strong> {bookingResult.booking.partySize} people</p>
+                  <p><strong>Status:</strong> {bookingResult.booking.status}</p>
+                  {bookingResult.booking.confirmationCode && (
+                    <p><strong>Confirmation Code:</strong> {bookingResult.booking.confirmationCode}</p>
+                  )}
+                </div>
               )}
-              {result.simulation && (
-                <p className="text-amber-500 font-medium">
-                  Note: This was a simulated booking. No actual reservation was made.
-                </p>
+              
+              {bookingResult.error && (
+                <div className="text-sm text-red-500 border border-red-200 rounded-md p-3 bg-red-50">
+                  <p><strong>Error:</strong> {bookingResult.error}</p>
+                </div>
+              )}
+              
+              {bookingResult.logs && bookingResult.logs.length > 0 && (
+                <div className="mt-4">
+                  <h4 className="text-sm font-medium mb-2">Booking Logs</h4>
+                  <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                    <div className="text-xs font-mono">
+                      {bookingResult.logs.map((log: string, index: number) => (
+                        <div key={index} className="py-1">
+                          {log}
+                        </div>
+                      ))}
+                    </div>
+                  </ScrollArea>
+                </div>
               )}
             </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {logs.length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Booking Process Logs</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ScrollArea className="h-[200px] w-full rounded-md border p-4">
-              {logs.map((log, index) => (
-                <div key={index} className="pb-2 text-sm">
-                  {log}
-                </div>
-              ))}
-            </ScrollArea>
           </CardContent>
         </Card>
       )}
