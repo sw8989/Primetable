@@ -1,7 +1,7 @@
 import { Switch, Route } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 
 import Header from "@/components/Header";
 import Footer from "@/components/Footer";
@@ -10,8 +10,13 @@ import AgentDrawer from "@/components/AgentDrawer";
 import Home from "@/pages/Home";
 import MyBookings from "@/pages/MyBookings";
 import Favorites from "@/pages/Favorites";
-import AutomationTest from "@/pages/AutomationTest";
 import NotFound from "@/pages/not-found";
+
+// Import testing components (in dev mode only)
+import AutomationTest from "@/pages/AutomationTest";
+
+// Control visibility based on environment
+const isDevEnvironment = import.meta.env.DEV;
 
 import { useBooking } from "./hooks/useBooking";
 
@@ -56,7 +61,7 @@ function Router() {
         <Route path="/" component={Home} />
         <Route path="/bookings" component={MyBookings} />
         <Route path="/favorites" component={Favorites} />
-        <Route path="/automation-test" component={AutomationTest} />
+        {isDevEnvironment && <Route path="/dev-tools" component={AutomationTest} />}
         <Route component={NotFound} />
       </Switch>
       <Footer />

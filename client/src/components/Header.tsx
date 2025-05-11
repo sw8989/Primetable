@@ -3,6 +3,9 @@ import { Link, useLocation } from 'wouter';
 import { Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
 
+// Environment check for development mode
+const isDevEnvironment = import.meta.env.DEV;
+
 const Header = () => {
   const [location] = useLocation();
   const [isLoggedIn] = useState(true); // For demo purposes, assume logged in
@@ -32,9 +35,11 @@ const Header = () => {
           <Link href="/favorites" className={`hover:text-secondary transition duration-200 ${location === '/favorites' ? 'text-secondary' : ''}`}>
             Favorites
           </Link>
-          <Link href="/automation-test" className={`hover:text-secondary transition duration-200 ${location === '/automation-test' ? 'text-secondary' : ''}`}>
-            Auto Booking
-          </Link>
+          {isDevEnvironment && (
+            <Link href="/dev-tools" className={`hover:text-secondary transition duration-200 ${location === '/dev-tools' ? 'text-secondary' : ''}`}>
+              Dev Tools
+            </Link>
+          )}
           <a href="#" className="hover:text-secondary transition duration-200">Help</a>
           
           {isLoggedIn ? (

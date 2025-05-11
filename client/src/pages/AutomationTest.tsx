@@ -33,17 +33,16 @@ export default function AutomationTestPage() {
   
   return (
     <div className="container mx-auto py-8">
-      <h1 className="text-3xl font-bold mb-2">Restaurant Automation Tools</h1>
-      <p className="text-muted-foreground mb-6">
-        Test our advanced automation tools for restaurant searching and booking.
-      </p>
+      <h1 className="text-3xl font-bold mb-2">Developer Testing Tools</h1>
+      <div className="bg-amber-100 border-l-4 border-amber-500 text-amber-700 p-4 mb-6 rounded">
+        <h3 className="font-bold">Development Use Only</h3>
+        <p>These tools are for development and testing purposes only. In production, all booking functionality will be accessed through the Prime Table Booking Assistant.</p>
+      </div>
       
-      <Tabs defaultValue="booking" className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="booking">Standard Booking</TabsTrigger>
+      <Tabs defaultValue="puppeteer" className="w-full">
+        <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="puppeteer">Puppeteer MCP</TabsTrigger>
           <TabsTrigger value="tools">AI Booking Tools</TabsTrigger>
-          <TabsTrigger value="search">Web Search</TabsTrigger>
         </TabsList>
         
         <TabsContent value="booking" className="mt-6">
