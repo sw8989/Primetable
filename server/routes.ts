@@ -998,6 +998,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
   }
   
   // Automated booking test endpoint
+  app.post("/api/booking/detect-platform", async (req: Request, res: Response) => {
+    try {
+      const { url } = req.body;
+      
+      if (!url) {
+        return res.status(400).json({
+          success: false,
+          message: "URL is required"
+        });
+      }
+      
+      // Import the platform detector service
+      const { analyzeWebsite } = require('./services/booking/platformDetector');
+      
+      // Detect platform from the provided URL
+      const result = await analyzeWebsite(url);
+      
+      return res.json({
+        success: true,
+        platform: result.platform,
+        confidence: result.confidence,
+        platformDetails: result.platformDetails || null
+      });
+    } catch (error: any) {
+      console.error("Platform detection error:", error);
+      return res.status(500).json({
+        success: false,
+        message: error.message || "Failed to detect platform"
+      });
+    }
+  });
+  
   app.post("/api/automated-booking", async (req: Request, res: Response) => {
     try {
       // Import automated booking service
