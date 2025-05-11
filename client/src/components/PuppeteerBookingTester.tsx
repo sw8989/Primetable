@@ -90,17 +90,21 @@ export default function PuppeteerBookingTester({ restaurants }: { restaurants: a
       };
       
       // Call API to create booking
-      const response = await apiRequest('/api/automated-booking', {
+      const response = await fetch('/api/automated-booking', {
         method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
         body: JSON.stringify(bookingRequest)
       });
       
-      setBookingResult(response);
+      const data = await response.json();
+      setBookingResult(data);
       
       toast({
-        title: response.success ? "Booking Test Successful" : "Booking Test Failed",
-        description: response.message || response.error || "No details available",
-        variant: response.success ? "default" : "destructive"
+        title: data.success ? "Booking Test Successful" : "Booking Test Failed",
+        description: data.message || data.error || "No details available",
+        variant: data.success ? "default" : "destructive"
       });
       
     } catch (error: any) {

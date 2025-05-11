@@ -14,8 +14,13 @@ export default function AutomationTestPage() {
   useEffect(() => {
     async function fetchRestaurants() {
       try {
-        const data = await apiRequest('/api/restaurants');
-        setRestaurants(data);
+        const response = await fetch('/api/restaurants');
+        if (response.ok) {
+          const data = await response.json();
+          setRestaurants(data);
+        } else {
+          console.error("Error fetching restaurants:", response.statusText);
+        }
       } catch (error) {
         console.error("Error fetching restaurants:", error);
       } finally {
@@ -50,7 +55,7 @@ export default function AutomationTestPage() {
               <Skeleton className="h-[300px] w-full" />
             </div>
           ) : (
-            <AutomatedBookingTester />
+            <AutomatedBookingTester restaurants={restaurants} />
           )}
         </TabsContent>
         

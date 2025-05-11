@@ -9,14 +9,22 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { formatISO } from "date-fns";
 
-export default function AutomatedBookingTester() {
+interface AutomatedBookingTesterProps {
+  restaurants?: any[];
+}
+
+export default function AutomatedBookingTester({ restaurants = [] }: AutomatedBookingTesterProps) {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [results, setResults] = useState<any>(null);
+  
+  // Get default restaurant if available
+  const defaultRestaurant = restaurants.length > 0 ? restaurants[0] : null;
+  
   const [form, setForm] = useState({
-    restaurantName: 'Chiltern Firehouse',
-    platformId: 'chiltern123',
-    platform: 'OpenTable',
+    restaurantName: defaultRestaurant?.name || 'Chiltern Firehouse',
+    platformId: defaultRestaurant?.platformId || 'chiltern123',
+    platform: defaultRestaurant?.bookingPlatform || 'OpenTable',
     date: formatISO(new Date(Date.now() + 14 * 24 * 60 * 60 * 1000)).split('T')[0], // 14 days from now
     time: '19:00',
     partySize: 2,
@@ -35,6 +43,22 @@ export default function AutomatedBookingTester() {
   };
 
   const handleSelectChange = (name: string, value: string) => {
+    // If changing restaurant, update related fields too
+    if (name === 'restaurantName' && restaurants.length > 0) {
+      const selectedRestaurant = restaurants.find(r => r.name === value);
+      
+      if (selectedRestaurant) {
+        setForm({
+          ...form,
+          restaurantName: selectedRestaurant.name,
+          platformId: selectedRestaurant.platformId || '',
+          platform: selectedRestaurant.bookingPlatform || 'OpenTable'
+        });
+        return;
+      }
+    }
+    
+    // Standard field update
     setForm({
       ...form,
       [name]: value
@@ -110,14 +134,32 @@ export default function AutomatedBookingTester() {
           <div className="grid gap-6">
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="restaurantName">Restaurant Name</Label>
-                <Input 
-                  id="restaurantName" 
-                  name="restaurantName" 
-                  value={form.restaurantName} 
-                  onChange={handleChange} 
-                  required 
-                />
+                <Label htmlFor="restaurantName">Restaurant</Label>
+                {restaurants.length > 0 ? (
+                  <Select 
+                    value={form.restaurantName} 
+                    onValueChange={(value) => handleSelectChange('restaurantName', value)}
+                  >
+                    <SelectTrigger id="restaurantName">
+                      <SelectValue placeholder="Select Restaurant" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {restaurants.map(restaurant => (
+                        <SelectItem key={restaurant.id} value={restaurant.name}>
+                          {restaurant.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input 
+                    id="restaurantName" 
+                    name="restaurantName" 
+                    value={form.restaurantName} 
+                    onChange={handleChange} 
+                    required 
+                  />
+                )}
               </div>
               
               <div className="space-y-2">
