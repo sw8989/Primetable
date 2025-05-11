@@ -1,4 +1,5 @@
 import OpenAI from "openai";
+import { getBookingTools } from "./ai/bookingTools";
 
 // Check if the API key is available in the environment variables
 if (!process.env.OPENAI_API_KEY) {
@@ -391,7 +392,7 @@ export async function processMcpChat(
         }
       },
       // Add booking tools for restaurant reservation
-      ...bookingTools
+      ...await getBookingTools()
     ];
     
     // Make the OpenAI API call with tools
@@ -477,8 +478,7 @@ export async function processMcpChat(
  */
 export async function getMcpTools(): Promise<any[]> {
   try {
-    // Import booking tools
-    const { bookingTools } = await import('./ai/bookingTools');
+    // We already imported getBookingTools at the top of the file
     
     // Define the standard tools
     const standardTools = [
@@ -512,6 +512,9 @@ export async function getMcpTools(): Promise<any[]> {
         }
       }
     ];
+    
+    // Get booking tools (this returns an array of tool schemas)
+    const bookingTools = getBookingTools();
     
     // Combine with booking tools
     return [...standardTools, ...bookingTools];
