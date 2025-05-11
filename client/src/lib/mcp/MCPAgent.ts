@@ -187,10 +187,23 @@ export class MCPAgent {
     }
     
     if (tool === 'detect_booking_platform') {
+      // Use custom message if provided
+      if (result.message) {
+        return result.message;
+      }
+      
+      // Otherwise generate a message based on the result
       if (result.success && result.platformName && result.platform !== 'unknown') {
-        return `I've analyzed the restaurant's website and detected they use ${result.platformName} for their booking system.`;
+        const confidenceLevel = result.confidence >= 0.8 ? 'high' : 
+                               result.confidence >= 0.5 ? 'moderate' : 'low';
+        
+        if (result.simulationMode) {
+          return `Based on my analysis, this restaurant appears to use ${result.platformName} for their booking system.`;
+        } else {
+          return `I've analyzed the restaurant's website and detected they use ${result.platformName} for their booking system with ${confidenceLevel} confidence.`;
+        }
       } else {
-        return `I couldn't determine which booking platform this restaurant uses from their website.`;
+        return `I couldn't determine which booking platform this restaurant uses from their website. Please provide the restaurant's official website URL for better results.`;
       }
     }
     

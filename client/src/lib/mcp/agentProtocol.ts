@@ -390,13 +390,28 @@ async function executePlatformDetectionTool(parameters: Record<string, unknown>)
   try {
     console.log(`Detecting booking platform for URL: ${url}`);
     
+    // Extract domain for better simulation results
+    let urlString = url;
+    if (!urlString.startsWith('http://') && !urlString.startsWith('https://')) {
+      urlString = 'https://' + urlString;
+    }
+    
+    let domain = '';
+    try {
+      const urlObj = new URL(urlString);
+      domain = urlObj.hostname.replace('www.', '');
+    } catch (urlError) {
+      console.warn('Could not parse URL:', urlError);
+      domain = urlString.replace('www.', '');
+    }
+    
     // Make the API call to our platform detection endpoint
     const response = await fetch('/api/booking/detect-platform', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url: urlString }),
     });
     
     if (!response.ok) {
@@ -405,6 +420,63 @@ async function executePlatformDetectionTool(parameters: Record<string, unknown>)
     
     const result = await response.json();
     
+    // If we got an unknown platform and very low confidence, let's try to provide better results
+    // based on URL patterns, which is useful in simulation mode
+    if ((result.platform === 'unknown' || result.confidence < 0.1) && domain) {
+      console.log('Low confidence detection, checking URL patterns for domain:', domain);
+      
+      // Check for known booking platform domains in the URL
+      if (domain.includes('opentable') || domain.includes('bookatable')) {
+        return {
+          result: {
+            success: true,
+            platform: 'opentable',
+            platformName: 'OpenTable',
+            confidence: 0.95,
+            url: urlString,
+            simulationMode: true,
+            message: 'Based on URL analysis, this restaurant appears to use OpenTable for bookings.'
+          }
+        };
+      } else if (domain.includes('resy')) {
+        return {
+          result: {
+            success: true,
+            platform: 'resy',
+            platformName: 'Resy',
+            confidence: 0.95,
+            url: urlString,
+            simulationMode: true,
+            message: 'Based on URL analysis, this restaurant appears to use Resy for bookings.'
+          }
+        };
+      } else if (domain.includes('tock') || domain.includes('exploretock')) {
+        return {
+          result: {
+            success: true,
+            platform: 'tock',
+            platformName: 'Tock',
+            confidence: 0.95,
+            url: urlString,
+            simulationMode: true,
+            message: 'Based on URL analysis, this restaurant appears to use Tock for bookings.'
+          }
+        };
+      } else if (domain.includes('sevenrooms') || domain.includes('resdiary')) {
+        return {
+          result: {
+            success: true,
+            platform: 'sevenrooms',
+            platformName: 'SevenRooms',
+            confidence: 0.95,
+            url: urlString,
+            simulationMode: true,
+            message: 'Based on URL analysis, this restaurant appears to use SevenRooms for bookings.'
+          }
+        };
+      }
+    }
+    
     return {
       result: {
         success: result.success,
@@ -412,7 +484,8 @@ async function executePlatformDetectionTool(parameters: Record<string, unknown>)
         platformName: result.platformName,
         confidence: result.confidence,
         platformDetails: result.platformDetails,
-        url: url
+        url: urlString,
+        simulationMode: result.simulationMode || false
       }
     };
   } catch (error) {
@@ -426,7 +499,9 @@ async function executePlatformDetectionTool(parameters: Record<string, unknown>)
         platformName: 'Unknown Platform',
         confidence: 0,
         url: url,
-        error: error instanceof Error ? error.message : 'Failed to detect platform'
+        error: error instanceof Error ? error.message : 'Failed to detect platform',
+        simulationMode: true,
+        message: 'Could not detect the booking platform. Please provide a direct link to the restaurant\'s official website.'
       }
     };
   }
@@ -620,6 +695,16 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
   try {
     console.log(`Executing FireCrawl search for: ${query}`);
     
+    // Check if the query specifically mentions a restaurant
+    const queryStr = query as string;
+    const isRestaurantSpecific = queryStr.toLowerCase().includes('restaurant') || 
+                                queryStr.toLowerCase().includes('dining') ||
+                                queryStr.toLowerCase().includes('book') ||
+                                queryStr.toLowerCase().includes('reservation');
+    
+    // Add London and restaurant context if not specified
+    const searchQuery = isRestaurantSpecific ? queryStr : `${queryStr} restaurant London`;
+    
     // First try using the FireCrawl proxy endpoint
     try {
       // Make a direct request to our proxy endpoint
@@ -629,7 +714,7 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
           'Content-Type': 'application/json'
         },
         body: JSON.stringify({
-          query: query as string
+          query: searchQuery
         })
       });
       
@@ -643,8 +728,9 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
               success: true,
               results: result.results,
               count: result.results.length,
-              query: query,
-              provider: 'FireCrawl'
+              query: searchQuery,
+              provider: 'FireCrawl',
+              simulation: result.simulation || false
             }
           };
         }
@@ -655,24 +741,35 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
       console.error('Error with FireCrawl search:', proxyError);
     }
     
-    // Fallback to simulated response
+    // Fallback to simulated response with improved quality
     console.log('Generating simulated FireCrawl search results');
-    const queryStr = query as string;
+    
+    // Create more realistic restaurant specific information
+    const restaurantName = queryStr.split(' ').slice(0, 2).join(' '); // Use first couple words for restaurant name
+    const cuisineTypes = ['Modern British', 'French', 'Italian', 'Japanese', 'Contemporary European'];
+    const randomCuisine = cuisineTypes[Math.floor(Math.random() * cuisineTypes.length)];
+    
+    const locations = ['Mayfair', 'Soho', 'Shoreditch', 'Notting Hill', 'Covent Garden', 'Kensington'];
+    const randomLocation = locations[Math.floor(Math.random() * locations.length)];
+    
+    const chefs = ['Executive Chef James Parker', 'Head Chef Sarah Williams', 'Chef-patron Thomas Miller'];
+    const randomChef = chefs[Math.floor(Math.random() * chefs.length)];
+    
     const simulatedResults = [
       {
-        title: `${queryStr} - Fine Dining in London (FireCrawl)`,
+        title: `${restaurantName} - Fine Dining Restaurant in ${randomLocation}, London`,
         link: `https://example.com/london-restaurants/${queryStr.toLowerCase().replace(/\s+/g, '-')}`,
-        snippet: `${queryStr} is one of London's premier dining experiences. Located in an elegant setting with exceptional service. Advance bookings essential.`
+        snippet: `${restaurantName} offers ${randomCuisine} cuisine in an elegant setting with exceptional service by ${randomChef}. Located in ${randomLocation}, London. Advance bookings essential, typically 30-60 days ahead.`
       },
       {
-        title: `${queryStr} - Michelin Guide London`,
-        link: `https://example.com/michelin/${queryStr.toLowerCase().replace(/\s+/g, '-')}`,
-        snippet: `${queryStr} has received recognition for its innovative approach to fine dining. Chef's tasting menu available with wine pairings.`
+        title: `${restaurantName} Restaurant - Booking Information and Reviews`,
+        link: `https://example.com/bookings/${queryStr.toLowerCase().replace(/\s+/g, '-')}`,
+        snippet: `Book a table at ${restaurantName}. Reservations open 60 days in advance and fill quickly. The restaurant has received critical acclaim for its innovative ${randomCuisine} menu and wine selection.`
       },
       {
-        title: `${queryStr} - Advanced Reservations System`,
-        link: `https://example.com/booking-system/${queryStr.toLowerCase().replace(/\s+/g, '-')}`,
-        snippet: `Making a reservation at ${queryStr}. The restaurant typically releases tables 60 days in advance and they are quickly booked. Special occasions can be noted during booking.`
+        title: `Top London Restaurants - ${restaurantName} in ${randomLocation}`,
+        link: `https://example.com/top-restaurants/${queryStr.toLowerCase().replace(/\s+/g, '-')}`,
+        snippet: `${restaurantName} is among London's most sought-after dining experiences. The ${randomCuisine} menu changes seasonally and showcases local British produce. Booking strategies include checking for cancellations or joining the waiting list.`
       }
     ];
     
@@ -681,9 +778,10 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
         success: true,
         results: simulatedResults,
         count: simulatedResults.length,
-        query: query,
+        query: searchQuery,
         provider: 'FireCrawl',
-        simulation: true
+        simulation: true,
+        message: 'Please note these results are simulated for demonstration purposes.'
       }
     };
   } catch (error) {
@@ -695,16 +793,17 @@ async function executeFireCrawlSearchTool(parameters: Record<string, unknown>): 
         success: true,
         results: [
           {
-            title: `${query as string} - Restaurant Information (FireCrawl)`,
+            title: `${query as string} - Restaurant Information`,
             link: `https://example.com/fallback`,
-            snippet: `Information about ${query as string}. Unable to search for more details at this time.`
+            snippet: `Information about ${query as string}. To get better restaurant information, please be more specific about the restaurant name, cuisine, or location.`
           }
         ],
         count: 1,
         query: query,
         provider: 'FireCrawl',
         simulation: true,
-        fallback: true
+        fallback: true,
+        message: 'Please note these results are simulated for demonstration purposes.'
       }
     };
   }
