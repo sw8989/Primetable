@@ -328,7 +328,7 @@ export async function processMcpChat(
     });
     
     // Import booking tools
-    const { bookingTools } = await import('../ai/bookingTools');
+    const { bookingTools } = await import('./ai/bookingTools');
     
     // Define the available tools based on the MCP protocol
     const tools = [
@@ -478,7 +478,7 @@ export async function processMcpChat(
 export async function getMcpTools(): Promise<any[]> {
   try {
     // Import booking tools
-    const { bookingTools } = await import('../ai/bookingTools');
+    const { bookingTools } = await import('./ai/bookingTools');
     
     // Define the standard tools
     const standardTools = [
