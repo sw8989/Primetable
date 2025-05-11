@@ -24,7 +24,7 @@ class AIService {
         tool_calls: msg.tool_calls,
         tool_results: msg.tool_results 
           ? msg.tool_results.map(tr => ({
-              name: tr.tool || tr.name,
+              name: (tr as any).tool || (tr as any).name || 'unknown',
               result: tr.result
             }))
           : undefined
@@ -167,18 +167,18 @@ export class MCPAgent {
   private formatToolResultAsText(toolCall: ToolCall, toolResult: ToolResult): string {
     // Format based on tool type
     const tool = toolCall.tool;
+    const result = toolResult.result || {};
     
     if (tool === 'search_restaurants_tool') {
-      const results = toolResult.result?.restaurants || [];
-      if (results.length === 0) {
+      const restaurants = result.restaurants || [];
+      if (!Array.isArray(restaurants) || restaurants.length === 0) {
         return "I couldn't find any restaurants matching your criteria.";
       }
       
-      return `I found ${results.length} restaurant(s) that might interest you.`;
+      return `I found ${restaurants.length} restaurant(s) that might interest you.`;
     }
     
     if (tool === 'check_availability_tool') {
-      const result = toolResult.result;
       if (result.available) {
         return `Good news! There's availability for your requested time.`;
       } else {
@@ -186,8 +186,25 @@ export class MCPAgent {
       }
     }
     
+    if (tool === 'detect_booking_platform') {
+      if (result.success && result.platformName && result.platform !== 'unknown') {
+        return `I've analyzed the restaurant's website and detected they use ${result.platformName} for their booking system.`;
+      } else {
+        return `I couldn't determine which booking platform this restaurant uses from their website.`;
+      }
+    }
+    
+    if (tool === 'web_search_tool' || tool === 'firecrawl_search_tool') {
+      const results = result.results || [];
+      if (!Array.isArray(results) || results.length === 0) {
+        return "I couldn't find any relevant information online.";
+      }
+      
+      return `I found some information that might be helpful.`;
+    }
+    
     // Generic formatting
-    return JSON.stringify(toolResult.result);
+    return JSON.stringify(result);
   }
   
   /**

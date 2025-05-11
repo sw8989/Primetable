@@ -22,8 +22,10 @@ export interface ToolCall {
 }
 
 export interface ToolResult {
-  result: Record<string, unknown>;
+  result: Record<string, any>;
   error?: string;
+  tool?: string;  // Optional property to identify which tool produced this result
+  name?: string;  // Optional property for compatibility with some MCP frameworks
 }
 
 // MCP message types

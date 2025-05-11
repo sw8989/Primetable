@@ -1010,14 +1010,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Import the platform detector service
-      const { analyzeWebsite } = await import('./services/booking/platformDetector');
+      const { analyzeWebsite, BookingPlatform } = await import('./services/booking/platformDetector');
       
       // Detect platform from the provided URL
       const result = await analyzeWebsite(url);
       
+      // Map the platform to a more descriptive name
+      const platformDescriptions: Record<string, string> = {
+        [BookingPlatform.OPENTABLE]: "OpenTable",
+        [BookingPlatform.RESY]: "Resy",
+        [BookingPlatform.TOCK]: "Tock",
+        [BookingPlatform.SEVENROOMS]: "SevenRooms",
+        [BookingPlatform.DIRECT]: "Direct Booking System",
+        [BookingPlatform.UNKNOWN]: "Unknown Platform"
+      };
+      
       return res.json({
         success: true,
         platform: result.platform,
+        platformName: platformDescriptions[result.platform] || result.platform,
         confidence: result.confidence,
         platformDetails: result.platformDetails || null
       });
