@@ -525,50 +525,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Handle MCP tool calls endpoint
   app.post("/api/mcp/tool-call", async (req: Request, res: Response) => {
     try {
-      const { tool, parameters } = req.body;
+      // Support both MCPX and legacy format
+      const { tool, parameters, function_name, arguments: args } = req.body;
       
-      if (!tool) {
+      // Determine which format we're using
+      const toolName = function_name || tool;
+      const toolArgs = args ? (typeof args === 'string' ? JSON.parse(args) : args) : parameters;
+      
+      if (!toolName) {
         return res.status(400).json({ 
           success: false, 
           error: "Tool name is required" 
         });
       }
       
-      console.log(`Processing MCP tool call: ${tool}`, parameters);
+      console.log(`Processing MCP tool call: ${toolName}`, toolArgs);
       
       // Handle our new booking tools
-      if (tool === 'book_restaurant' || 
-          tool === 'check_availability' || 
-          tool === 'get_restaurant_info' ||
-          tool === 'find_alternative_restaurants') {
+      if (toolName === 'book_restaurant' || 
+          toolName === 'check_availability' || 
+          toolName === 'get_restaurant_info' ||
+          toolName === 'find_alternative_restaurants') {
         
         // Import the booking tools handler
         const { handleBookingToolCall } = await import('./services/ai/bookingTools');
         
         // Route to the appropriate handler
-        const result = await handleBookingToolCall(tool, parameters);
+        const result = await handleBookingToolCall(toolName, toolArgs);
         return res.json(result);
       }
         
       // Handle legacy tool types (for backward compatibility)
-      if (tool.startsWith('makeReservation') || 
-          tool.startsWith('findAvailability') || 
-          tool.startsWith('getRestaurantInfo')) {
+      if (toolName.startsWith('makeReservation') || 
+          toolName.startsWith('findAvailability') || 
+          toolName.startsWith('getRestaurantInfo')) {
         
         // Map to new tool names for consistency
         let newTool;
-        let newParams = { ...parameters };
+        let newParams = { ...toolArgs };
         
-        if (tool.includes('makeReservation')) {
+        if (toolName.includes('makeReservation')) {
           newTool = 'book_restaurant';
-        } else if (tool.includes('findAvailability')) {
+        } else if (toolName.includes('findAvailability')) {
           newTool = 'check_availability';
-        } else if (tool.includes('getRestaurantInfo')) {
+        } else if (toolName.includes('getRestaurantInfo')) {
           newTool = 'get_restaurant_info';
         } else {
           return res.status(400).json({
             success: false,
-            error: `Unknown booking tool: ${tool}`
+            error: `Unknown booking tool: ${toolName}`
           });
         }
         
@@ -580,7 +585,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Handle search tool
-      if (tool.includes('search_restaurants_tool')) {
+      if (toolName.includes('search_restaurants') || toolName.includes('search_restaurants_tool')) {
         try {
           const { query, cuisine, location, difficulty } = parameters;
           let restaurants = [];
