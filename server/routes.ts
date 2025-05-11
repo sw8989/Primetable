@@ -1064,10 +1064,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (isNaN(bookingDate.getTime())) {
           throw new Error('Invalid date format');
         }
-      } catch (dateError) {
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'Unknown date error';
         return res.status(400).json({ 
           success: false, 
-          error: `Invalid date format: ${dateError.message}` 
+          error: `Invalid date format: ${errorMessage}` 
         });
       }
       
