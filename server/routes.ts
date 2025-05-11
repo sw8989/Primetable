@@ -587,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle search tool
       if (toolName.includes('search_restaurants') || toolName.includes('search_restaurants_tool')) {
         try {
-          const { query, cuisine, location, difficulty } = parameters;
+          const { query, cuisine, location, difficulty } = toolArgs;
           let restaurants = [];
           
           // Search restaurants based on parameters
