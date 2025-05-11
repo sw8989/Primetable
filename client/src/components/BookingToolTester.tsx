@@ -156,7 +156,7 @@ export default function BookingToolTester({ restaurants }: { restaurants: any[] 
                 </SelectTrigger>
                 <SelectContent>
                   {restaurants.map((restaurant) => (
-                    <SelectItem key={restaurant.id} value={restaurant.name}>
+                    <SelectItem key={`restaurant-${restaurant.id}`} value={restaurant.name}>
                       {restaurant.name}
                     </SelectItem>
                   ))}

@@ -1,7 +1,5 @@
 import { useState, useEffect } from "react";
-import AutomatedBookingTester from "@/components/AutomatedBookingTester";
 import PuppeteerBookingTester from "@/components/PuppeteerBookingTester";
-import FireCrawlTester from "@/components/FireCrawlTester";
 import BookingToolTester from "@/components/BookingToolTester";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -45,20 +43,7 @@ export default function AutomationTestPage() {
           <TabsTrigger value="tools">AI Booking Tools</TabsTrigger>
         </TabsList>
         
-        <TabsContent value="booking" className="mt-6">
-          <h2 className="text-2xl font-semibold mb-4">Standard Booking Automation</h2>
-          <p className="text-muted-foreground mb-6">
-            Test our automated booking system on OpenTable and other restaurant reservation platforms using the standard approach.
-          </p>
-          {loading ? (
-            <div className="space-y-4">
-              <Skeleton className="h-[300px] w-full" />
-            </div>
-          ) : (
-            <AutomatedBookingTester restaurants={restaurants} />
-          )}
-        </TabsContent>
-        
+
         <TabsContent value="puppeteer" className="mt-6">
           <h2 className="text-2xl font-semibold mb-4">Puppeteer MCP Booking Automation</h2>
           <p className="text-muted-foreground mb-6">
@@ -87,13 +72,7 @@ export default function AutomationTestPage() {
           )}
         </TabsContent>
         
-        <TabsContent value="search" className="mt-6">
-          <h2 className="text-2xl font-semibold mb-4">FireCrawl Restaurant Search</h2>
-          <p className="text-muted-foreground mb-6">
-            Use FireCrawl to search for restaurant information and scrape booking details.
-          </p>
-          <FireCrawlTester />
-        </TabsContent>
+
       </Tabs>
     </div>
   );
