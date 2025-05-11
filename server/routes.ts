@@ -463,6 +463,106 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch MCP tools", tools: [] });
     }
   });
+  
+  // Handle MCP tool calls endpoint
+  app.post("/api/mcp/tool-call", async (req: Request, res: Response) => {
+    try {
+      const { tool, parameters } = req.body;
+      
+      if (!tool) {
+        return res.status(400).json({ 
+          success: false, 
+          error: "Tool name is required" 
+        });
+      }
+      
+      console.log(`Processing MCP tool call: ${tool}`, parameters);
+      
+      // Handle different tool types
+      if (tool.startsWith('makeReservation') || 
+          tool.startsWith('findAvailability') || 
+          tool.startsWith('getRestaurantInfo')) {
+        // Import the booking tools handlers
+        const { 
+          handleMakeReservation, 
+          handleFindAvailability, 
+          handleGetRestaurantInfo 
+        } = await import('./services/ai/bookingTools');
+        
+        // Route to the appropriate handler based on the tool name
+        let result;
+        
+        if (tool.includes('makeReservation')) {
+          result = await handleMakeReservation(parameters);
+        } else if (tool.includes('findAvailability')) {
+          result = await handleFindAvailability(parameters);
+        } else if (tool.includes('getRestaurantInfo')) {
+          result = await handleGetRestaurantInfo(parameters);
+        } else {
+          return res.status(400).json({
+            success: false,
+            error: `Unknown booking tool: ${tool}`
+          });
+        }
+        
+        return res.json(result);
+      }
+      
+      // Handle search tool
+      if (tool.includes('search_restaurants_tool')) {
+        try {
+          const { query, cuisine, location, difficulty } = parameters;
+          let restaurants = [];
+          
+          // Search restaurants based on parameters
+          if (query) {
+            restaurants = await storage.searchRestaurants(query);
+          } else {
+            // Apply filters if available
+            const filters: any = {};
+            if (cuisine) filters.cuisine = [cuisine];
+            if (location) filters.location = [location];
+            if (difficulty) filters.difficulty = [difficulty];
+            
+            restaurants = Object.keys(filters).length > 0
+              ? await storage.filterRestaurants(filters)
+              : await storage.getRestaurants();
+          }
+          
+          return res.json({
+            success: true,
+            restaurants: restaurants.map(r => ({
+              id: r.id,
+              name: r.name,
+              cuisine: r.cuisine,
+              location: r.location,
+              bookingDifficulty: r.bookingDifficulty,
+              description: r.description,
+              bookingInfo: r.bookingInfo
+            }))
+          });
+        } catch (searchError: any) {
+          console.error('Search restaurants error:', searchError);
+          return res.status(500).json({
+            success: false,
+            error: searchError.message || 'Failed to search restaurants'
+          });
+        }
+      }
+      
+      // If we get here, it's an unknown tool
+      return res.status(400).json({
+        success: false,
+        error: `Unknown tool: ${tool}`
+      });
+    } catch (error: any) {
+      console.error("Error processing MCP tool call:", error);
+      res.status(500).json({ 
+        success: false, 
+        error: error.message || "Failed to process tool call" 
+      });
+    }
+  });
 
   // Smithery proxy endpoint
   app.all("/api/smithery-proxy/*", async (req: Request, res: Response) => {

@@ -279,17 +279,40 @@ export async function processMcpChat(
     // Map the MCP message format to OpenAI format
     const openaiMessages: any[] = messages.map(msg => {
       if (msg.role === 'tool') {
-        // Handle tool messages - convert to function messages with proper name
+        // Handle tool messages - convert to function messages with proper tool name
+        const toolName = (msg as any).tool_name || 'tool_response';
         return {
           role: 'function',
-          name: 'tool_response',
-          content: msg.content
+          name: toolName,
+          content: typeof msg.content === 'string' 
+            ? msg.content 
+            : JSON.stringify(msg.content)
         };
       } else if (msg.role === 'user') {
         return {
           role: 'user',
           content: msg.content
         };
+      } else if (msg.role === 'assistant' && msg.tool_calls && msg.tool_calls.length > 0) {
+        // Handle assistant messages with tool calls
+        const assistantMessage: any = {
+          role: 'assistant',
+          content: msg.content
+        };
+        
+        // Convert MCP tool_calls to OpenAI tool_calls
+        assistantMessage.tool_calls = msg.tool_calls.map((toolCall: any, index: number) => {
+          return {
+            id: `call_${Date.now()}_${index}`,
+            type: 'function',
+            function: {
+              name: toolCall.tool,
+              arguments: JSON.stringify(toolCall.parameters)
+            }
+          };
+        });
+        
+        return assistantMessage;
       } else {
         return {
           role: 'assistant',
@@ -398,8 +421,22 @@ export async function processMcpChat(
       mcpResponse.tool_calls = responseMessage.tool_calls.map(toolCall => {
         try {
           const args = JSON.parse(toolCall.function.arguments);
+          
+          // Handle booking tool calls
+          const toolName = toolCall.function.name;
+          if (toolName === 'makeReservation' || 
+              toolName === 'findAvailability' || 
+              toolName === 'getRestaurantInfo') {
+            
+            // Make sure userId is included for booking operations
+            if (toolName === 'makeReservation' && !args.userId) {
+              // Default to user ID 1 for demo purposes
+              args.userId = 1;
+            }
+          }
+          
           return {
-            tool: toolCall.function.name,
+            tool: toolName,
             parameters: args
           };
         } catch (error) {
@@ -435,11 +472,61 @@ export async function processMcpChat(
   }
 }
 
+/**
+ * Get available MCP tools for the AI assistant
+ */
+export async function getMcpTools(): Promise<any[]> {
+  try {
+    // Import booking tools
+    const { bookingTools } = await import('../ai/bookingTools');
+    
+    // Define the standard tools
+    const standardTools = [
+      {
+        type: 'function',
+        function: {
+          name: 'search_restaurants_tool',
+          description: 'Searches for restaurants by cuisine, location, or other criteria',
+          parameters: {
+            type: 'object',
+            properties: {
+              query: {
+                type: 'string',
+                description: 'The search query'
+              },
+              cuisine: {
+                type: 'string',
+                description: 'Type of cuisine (optional)'
+              },
+              location: {
+                type: 'string',
+                description: 'London location (optional)'
+              },
+              difficulty: {
+                type: 'string',
+                description: 'Booking difficulty level (optional): easy, medium, hard'
+              }
+            },
+            required: ['query']
+          }
+        }
+      }
+    ];
+    
+    // Combine with booking tools
+    return [...standardTools, ...bookingTools];
+  } catch (error) {
+    console.error('Error getting MCP tools:', error);
+    return [];
+  }
+}
+
 export default {
   isAvailable,
   analyzeBookingStrategy,
   suggestAlternativeTimes,
   generateBookingMessage,
   processChat,
-  processMcpChat
+  processMcpChat,
+  getMcpTools
 };
