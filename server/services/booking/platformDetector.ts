@@ -341,7 +341,8 @@ function extractBookingDetails(html: string, platform: BookingPlatform): any {
   }
 }
 
-export {
+// Export a single default object
+export default {
   detectPlatformFromUrl,
   analyzeWebsite,
   BookingPlatform

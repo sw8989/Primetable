@@ -139,8 +139,100 @@ export const FindAlternativeRestaurantsToolSchema = {
   }
 };
 
+// Define the JSON schema for detecting a restaurant's booking platform
+export const DetectBookingPlatformToolSchema = {
+  type: "function",
+  function: {
+    name: "detect_booking_platform",
+    description: "Detect which booking platform a restaurant uses from its website URL",
+    parameters: {
+      type: "object",
+      properties: {
+        url: {
+          type: "string",
+          description: "The restaurant's website URL to analyze"
+        }
+      },
+      required: ["url"]
+    }
+  }
+};
+
 // Tool implementations
 export const bookingTools = {
+  // Detect booking platform from URL
+  async detect_booking_platform(args: any) {
+    try {
+      console.log(`Detecting booking platform for URL: ${args.url}`);
+      
+      if (!args.url) {
+        return {
+          success: false,
+          error: "URL is required to detect booking platform"
+        };
+      }
+      
+      // Import the platform detector service
+      const { analyzeWebsite, BookingPlatform } = await import('../booking/platformDetector');
+      
+      // Clean up the URL if needed
+      let url = args.url;
+      if (!url.startsWith('http://') && !url.startsWith('https://')) {
+        url = 'https://' + url;
+      }
+      
+      // Analyze the website to detect platform
+      const result = await analyzeWebsite(url);
+      
+      // Map the platform to a more descriptive name
+      const platformDescriptions: Record<string, string> = {
+        [BookingPlatform.OPENTABLE]: "OpenTable",
+        [BookingPlatform.RESY]: "Resy",
+        [BookingPlatform.TOCK]: "Tock",
+        [BookingPlatform.SEVENROOMS]: "SevenRooms",
+        [BookingPlatform.DIRECT]: "Direct Booking System",
+        [BookingPlatform.UNKNOWN]: "Unknown Platform"
+      };
+      
+      // Prepare response based on detection confidence
+      if (result.confidence > 0.5) {
+        return {
+          success: true,
+          url: url,
+          platform: result.platform,
+          platformName: platformDescriptions[result.platform] || result.platform,
+          confidence: result.confidence,
+          platformDetails: result.platformDetails || null,
+          message: `Detected ${platformDescriptions[result.platform] || result.platform} with ${Math.round(result.confidence * 100)}% confidence.`
+        };
+      } else if (result.confidence > 0) {
+        return {
+          success: true,
+          url: url,
+          platform: result.platform,
+          platformName: platformDescriptions[result.platform] || result.platform,
+          confidence: result.confidence,
+          platformDetails: result.platformDetails || null,
+          message: `Low confidence detection of ${platformDescriptions[result.platform] || result.platform} (${Math.round(result.confidence * 100)}%). This is a best guess and may not be accurate.`
+        };
+      } else {
+        return {
+          success: false,
+          url: url,
+          platform: BookingPlatform.UNKNOWN,
+          platformName: "Unknown",
+          confidence: 0,
+          message: "Could not detect a booking platform for this website."
+        };
+      }
+    } catch (error: any) {
+      console.error('Error in detect_booking_platform tool:', error);
+      return {
+        success: false,
+        error: error.message || 'Unknown error occurred while detecting booking platform'
+      };
+    }
+  },
   // Book a restaurant 
   async book_restaurant(args: any) {
     try {
@@ -365,7 +457,8 @@ export function getBookingTools() {
     BookRestaurantToolSchema,
     CheckAvailabilityToolSchema,
     GetRestaurantInfoToolSchema,
-    FindAlternativeRestaurantsToolSchema
+    FindAlternativeRestaurantsToolSchema,
+    DetectBookingPlatformToolSchema
   ];
 }
 
