@@ -45,7 +45,7 @@ export class OpenTableBookingService implements BookingPlatformService {
 
       // Launch browser with appropriate options
       this.browser = await puppeteer.launch({
-        headless: "new",
+        headless: true,
         args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage'],
       });
       

@@ -11,6 +11,20 @@ import { bookingService } from './booking';
 import { BookingRequest } from './booking/interfaces';
 import { config } from '../config';
 
+interface DirectBookingRequest {
+  restaurantName: string;
+  platformId: string;
+  platform: string;
+  date: Date;
+  time: string;
+  partySize: number;
+  userEmail?: string;
+  userPhone?: string;
+  userName?: string;
+  specialRequests?: string;
+  bookingUrl?: string;
+}
+
 interface AutomatedBookingRequest {
   restaurantId: number;
   userId: number;
@@ -24,8 +38,97 @@ interface AutomatedBookingRequest {
 }
 
 export class AutomatedBookingService {
+  private simulationMode: boolean;
+  
+  constructor() {
+    this.simulationMode = process.env.SIMULATION_MODE === 'true' || !config.bookingAgent.enableRealBooking;
+    console.log(`AutomatedBookingService initialized, simulation mode: ${this.simulationMode}`);
+  }
+  
   /**
-   * Create an automated booking request
+   * Check if a platform is supported
+   */
+  isPlatformSupported(platform: string): boolean {
+    // Currently support OpenTable, Resy, SevenRooms, Tock
+    const supportedPlatforms = ['OpenTable', 'Resy', 'SevenRooms', 'Tock'];
+    return supportedPlatforms.includes(platform);
+  }
+  
+  /**
+   * Support for the existing API
+   */
+  async executeBooking(request: DirectBookingRequest): Promise<any> {
+    try {
+      console.log(`Starting automated booking for ${request.restaurantName} on ${request.platform}`);
+      
+      // Find the restaurant by name if possible
+      let restaurant: Restaurant | undefined;
+      
+      if (request.platformId) {
+        // Try to find by platformId
+        const restaurants = await storage.getRestaurants();
+        restaurant = restaurants.find(r => r.platformId === request.platformId);
+      }
+      
+      if (!restaurant) {
+        // Create a temporary restaurant object
+        restaurant = {
+          id: 0,
+          name: request.restaurantName,
+          description: 'Temporary restaurant record',
+          cuisine: 'Unknown',
+          location: 'London',
+          bookingDifficulty: 'medium',
+          bookingInfo: 'Unknown',
+          bookingPlatform: request.platform,
+          platformId: request.platformId,
+          bookingUrl: request.bookingUrl || null,
+          imageUrl: null,
+          bookingNotes: null,
+          websiteUrl: null,
+          platformDetails: null,
+          bookingSelectors: null,
+          releaseStrategy: null,
+          lastScrapedAt: null
+        };
+      }
+      
+      // Prepare the booking request
+      const bookingRequest: BookingRequest = {
+        restaurantId: restaurant.id,
+        date: request.date,
+        time: request.time,
+        partySize: request.partySize,
+        name: request.userName || 'Guest',
+        email: request.userEmail || 'guest@example.com',
+        phone: request.userPhone || '555-555-5555',
+        specialRequests: request.specialRequests || ''
+      };
+      
+      // Now attempt the actual booking through our platform-specific service
+      console.log(`Attempting to book table at ${restaurant.name}`);
+      const result = await bookingService.bookTable(restaurant, bookingRequest);
+      
+      // Return the result
+      return {
+        success: result.success,
+        status: result.status,
+        confirmationCode: result.confirmationCode,
+        error: result.error,
+        logs: result.logs,
+        simulation: result.simulation
+      };
+    } catch (error: any) {
+      console.error('Automated booking error:', error);
+      return {
+        success: false,
+        error: `Booking error: ${error.message || error}`
+      };
+    }
+  }
+  
+  /**
+   * Create an automated booking request using our database
    */
   async createBooking(request: AutomatedBookingRequest): Promise<{
     success: boolean;

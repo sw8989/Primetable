@@ -24,7 +24,7 @@ export class BookingServiceOrchestrator {
   private defaultService: BookingPlatformService;
   
   constructor() {
-    this.simulationMode = process.env.SIMULATION_MODE === 'true' || !config.enableRealBooking;
+    this.simulationMode = process.env.SIMULATION_MODE === 'true' || !config.bookingAgent.enableRealBooking;
     this.defaultService = new OpenTableBookingService(); // Default to OpenTable for now
     
     console.log(`BookingServiceOrchestrator initialized, simulation mode: ${this.simulationMode}`);
