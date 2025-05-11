@@ -304,6 +304,9 @@ export async function processMcpChat(
       content: context
     });
     
+    // Import booking tools
+    const { bookingTools } = await import('../ai/bookingTools');
+    
     // Define the available tools based on the MCP protocol
     const tools = [
       {
@@ -363,7 +366,9 @@ export async function processMcpChat(
             required: ["restaurant_id", "date", "time", "party_size"]
           }
         }
-      }
+      },
+      // Add booking tools for restaurant reservation
+      ...bookingTools
     ];
     
     // Make the OpenAI API call with tools
