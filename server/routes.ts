@@ -1010,7 +1010,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Import the platform detector service
-      const { analyzeWebsite } = require('./services/booking/platformDetector');
+      const { analyzeWebsite } = await import('./services/booking/platformDetector');
       
       // Detect platform from the provided URL
       const result = await analyzeWebsite(url);
