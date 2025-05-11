@@ -145,13 +145,27 @@ export const FIRECRAWL_SEARCH_TOOL: Tool = {
   required_parameters: ['query']
 };
 
+// Define platform detection tool
+export const PLATFORM_DETECTION_TOOL: Tool = {
+  name: 'detect_booking_platform',
+  description: 'Detect which booking platform a restaurant uses based on its website URL',
+  parameters: {
+    url: {
+      type: 'string',
+      description: 'The restaurant website URL to analyze'
+    }
+  },
+  required_parameters: ['url']
+};
+
 // Define all tools available to the agent
 export const AVAILABLE_TOOLS = [
   BOOKING_TOOL,
   SEARCH_TOOL,
   AVAILABILITY_TOOL,
   WEB_SEARCH_TOOL,
-  FIRECRAWL_SEARCH_TOOL
+  FIRECRAWL_SEARCH_TOOL,
+  PLATFORM_DETECTION_TOOL
 ];
 
 /**
@@ -357,6 +371,66 @@ async function executeSmitheryBookingTool(parameters: Record<string, unknown>): 
 }
 
 /**
+ * Implementation of platform detection tool
+ * Detects which booking platform a restaurant uses based on its website URL
+ */
+async function executePlatformDetectionTool(parameters: Record<string, unknown>): Promise<ToolResult> {
+  const { url } = parameters;
+  
+  // Validate required parameters
+  if (!url || typeof url !== 'string') {
+    return {
+      result: {},
+      error: 'Missing or invalid URL parameter for detect_booking_platform tool'
+    };
+  }
+  
+  try {
+    console.log(`Detecting booking platform for URL: ${url}`);
+    
+    // Make the API call to our platform detection endpoint
+    const response = await fetch('/api/booking/detect-platform', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ url }),
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Platform detection failed with status: ${response.status}`);
+    }
+    
+    const result = await response.json();
+    
+    return {
+      result: {
+        success: result.success,
+        platform: result.platform,
+        platformName: result.platformName,
+        confidence: result.confidence,
+        platformDetails: result.platformDetails,
+        url: url
+      }
+    };
+  } catch (error) {
+    console.error('Error executing platform detection tool:', error);
+    
+    // Provide a fallback response with a warning
+    return {
+      result: {
+        success: false,
+        platform: 'unknown',
+        platformName: 'Unknown Platform',
+        confidence: 0,
+        url: url,
+        error: error instanceof Error ? error.message : 'Failed to detect platform'
+      }
+    };
+  }
+}
+
+/**
  * Executes a tool call and returns the result
  */
 export async function executeToolCall(toolCall: ToolCall): Promise<ToolResult> {
@@ -372,6 +446,8 @@ export async function executeToolCall(toolCall: ToolCall): Promise<ToolResult> {
       return await executeWebSearchTool(toolCall.parameters);
     } else if (toolCall.tool === 'firecrawl_search_tool') {
       return await executeFireCrawlSearchTool(toolCall.parameters);
+    } else if (toolCall.tool === 'detect_booking_platform') {
+      return await executePlatformDetectionTool(toolCall.parameters);
     }
     
     // Handle legacy tools
