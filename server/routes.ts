@@ -450,14 +450,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // MCP Tools endpoint
   app.get("/api/mcp/tools", async (_req: Request, res: Response) => {
     try {
-      const service = aiService.getService();
+      // Get booking tools
+      const { getBookingTools } = await import('./services/ai/bookingTools');
+      const bookingTools = getBookingTools();
       
-      if (!service || !service.getMcpTools) {
-        return res.json({ tools: [] });
+      // Get AI service tools
+      const service = aiService.getService();
+      let aiTools: any[] = [];
+      
+      if (service && service.getMcpTools) {
+        aiTools = await service.getMcpTools();
       }
       
-      const tools = await service.getMcpTools();
-      res.json({ tools });
+      // Combine all tools
+      const allTools = [...bookingTools, ...aiTools];
+      
+      res.json({ tools: allTools });
     } catch (error) {
       console.error("Error fetching MCP tools:", error);
       res.status(500).json({ error: "Failed to fetch MCP tools", tools: [] });
@@ -478,32 +486,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`Processing MCP tool call: ${tool}`, parameters);
       
-      // Handle different tool types
+      // Handle our new booking tools
+      if (tool === 'book_restaurant' || 
+          tool === 'check_availability' || 
+          tool === 'get_restaurant_info' ||
+          tool === 'find_alternative_restaurants') {
+        
+        // Import the booking tools handler
+        const { handleBookingToolCall } = await import('./services/ai/bookingTools');
+        
+        // Route to the appropriate handler
+        const result = await handleBookingToolCall(tool, parameters);
+        return res.json(result);
+      }
+        
+      // Handle legacy tool types (for backward compatibility)
       if (tool.startsWith('makeReservation') || 
           tool.startsWith('findAvailability') || 
           tool.startsWith('getRestaurantInfo')) {
-        // Import the booking tools handlers
-        const { 
-          handleMakeReservation, 
-          handleFindAvailability, 
-          handleGetRestaurantInfo 
-        } = await import('./services/ai/bookingTools');
         
-        // Route to the appropriate handler based on the tool name
-        let result;
+        // Map to new tool names for consistency
+        let newTool;
+        let newParams = { ...parameters };
         
         if (tool.includes('makeReservation')) {
-          result = await handleMakeReservation(parameters);
+          newTool = 'book_restaurant';
         } else if (tool.includes('findAvailability')) {
-          result = await handleFindAvailability(parameters);
+          newTool = 'check_availability';
         } else if (tool.includes('getRestaurantInfo')) {
-          result = await handleGetRestaurantInfo(parameters);
+          newTool = 'get_restaurant_info';
         } else {
           return res.status(400).json({
             success: false,
             error: `Unknown booking tool: ${tool}`
           });
         }
+        
+        // Import the booking tools handler and use the new naming
+        const { handleBookingToolCall } = await import('./services/ai/bookingTools');
+        const result = await handleBookingToolCall(newTool, newParams);
         
         return res.json(result);
       }
