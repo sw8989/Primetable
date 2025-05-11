@@ -10,6 +10,8 @@ export const config = {
   bookingAgent: {
     // Enable real web scraping capabilities
     useRealScraping: true,
+    // Enable real booking capabilities (not simulation)
+    enableRealBooking: false, // Default to false for safety
     // Show additional debug information
     debug: false,
     // Default check interval in minutes
