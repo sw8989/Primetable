@@ -1030,12 +1030,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Execute booking
-      console.log(`Starting automated booking test for ${bookingRequest.restaurantName}`);
-      const result = await automatedBookingService.executeBooking(bookingRequest);
+      // Check if we should use Puppeteer MCP
+      const useMcpPuppeteer = req.body.useMcpPuppeteer === true;
       
-      // Return result
-      res.json(result);
+      if (useMcpPuppeteer) {
+        console.log(`Starting Puppeteer MCP booking test for ${bookingRequest.restaurantName}`);
+        
+        try {
+          // Find restaurant to get complete details
+          const restaurant = await storage.getRestaurantByName(bookingRequest.restaurantName);
+          
+          if (!restaurant) {
+            return res.status(404).json({
+              success: false,
+              error: `Restaurant not found: ${bookingRequest.restaurantName}`
+            });
+          }
+          
+          // Import OpenTable MCP service
+          const { OpenTableMCPService } = await import('./services/booking/openTableMcp');
+          const openTableMcpService = new OpenTableMCPService();
+          
+          // Create booking request for the MCP service
+          const mcpBookingRequest = {
+            date: bookingDate,
+            time: req.body.time,
+            partySize: parseInt(req.body.partySize),
+            name: req.body.userName || req.body.name,
+            email: req.body.userEmail || req.body.email,
+            phone: req.body.userPhone || req.body.phone,
+            specialRequests: req.body.specialRequests,
+          };
+          
+          // Execute booking using MCP
+          const mcpResult = await openTableMcpService.bookTable(restaurant, mcpBookingRequest);
+          
+          // Create a standardized result
+          const result = {
+            success: mcpResult.success,
+            message: mcpResult.success 
+              ? `Successfully tested booking at ${bookingRequest.restaurantName}` 
+              : mcpResult.error || 'Failed to process booking',
+            booking: mcpResult.success ? {
+              id: Date.now(),
+              restaurantName: bookingRequest.restaurantName,
+              date: bookingRequest.date.toISOString().split('T')[0],
+              time: bookingRequest.time,
+              partySize: bookingRequest.partySize,
+              status: mcpResult.status || 'pending',
+              confirmationCode: mcpResult.confirmationCode
+            } : undefined,
+            logs: mcpResult.logs || [],
+            simulation: mcpResult.simulation || false
+          };
+          
+          return res.json(result);
+        } catch (mcpError: any) {
+          console.error('Error in Puppeteer MCP booking:', mcpError);
+          return res.status(500).json({
+            success: false,
+            error: mcpError.message || 'Failed to process MCP booking',
+            logs: mcpError.logs || []
+          });
+        }
+      } else {
+        // Use standard automation
+        console.log(`Starting automated booking test for ${bookingRequest.restaurantName}`);
+        const result = await automatedBookingService.executeBooking(bookingRequest);
+        
+        // Return result
+        return res.json(result);
+      }
     } catch (error) {
       console.error("Error in automated booking:", error);
       res.status(500).json({ 
