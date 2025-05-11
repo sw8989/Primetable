@@ -1,332 +1,382 @@
 /**
  * AI Booking Tools
  * 
- * MCP-compatible tools that allow the AI assistant to make restaurant bookings
+ * This module provides tool definitions for AI services to perform
+ * intelligent booking operations using MCP (Model Context Protocol).
  */
 
 import { storage } from '../../storage';
+import { config } from '../../config';
 import { bookingService } from '../booking';
-import { Restaurant } from '@shared/schema';
 
-// Define the MCP Tool schema
-export const bookingTools = [
-  {
-    type: 'function',
-    function: {
-      name: 'makeReservation',
-      description: 'Books a table at a restaurant on behalf of the user',
-      parameters: {
-        type: 'object',
-        properties: {
-          restaurant: {
-            type: 'string',
-            description: 'Name of the restaurant to book'
-          },
-          date: {
-            type: 'string',
-            description: 'Date for the reservation in YYYY-MM-DD format'
-          },
-          time: {
-            type: 'string',
-            description: 'Time for the reservation in HH:MM format (24 hour)'
-          },
-          partySize: {
-            type: 'integer',
-            description: 'Number of people in the party'
-          },
-          specialRequests: {
-            type: 'string',
-            description: 'Any special requests or notes for the booking'
-          },
-          userId: {
-            type: 'integer',
-            description: 'ID of the user making the booking'
-          }
+// Define the JSON schema for booking a restaurant
+export const BookRestaurantToolSchema = {
+  type: "function",
+  function: {
+    name: "book_restaurant",
+    description: "Book a table at a specific restaurant for a given date and time",
+    parameters: {
+      type: "object",
+      properties: {
+        restaurant: {
+          type: "string",
+          description: "The name of the restaurant to book"
         },
-        required: ['restaurant', 'date', 'time', 'partySize', 'userId']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'findAvailability',
-      description: 'Checks availability for a specific restaurant, date, and party size',
-      parameters: {
-        type: 'object',
-        properties: {
-          restaurant: {
-            type: 'string',
-            description: 'Name of the restaurant to check'
-          },
-          date: {
-            type: 'string',
-            description: 'Date to check in YYYY-MM-DD format'
-          },
-          partySize: {
-            type: 'integer',
-            description: 'Number of people in the party'
-          },
-          timeRange: {
-            type: 'string',
-            description: 'Optional time range to check e.g. "18:00-21:00"'
-          }
+        date: {
+          type: "string",
+          description: "The date for the booking in YYYY-MM-DD format"
         },
-        required: ['restaurant', 'date', 'partySize']
-      }
-    }
-  },
-  {
-    type: 'function',
-    function: {
-      name: 'getRestaurantInfo',
-      description: 'Get detailed information about a restaurant including booking details',
-      parameters: {
-        type: 'object',
-        properties: {
-          restaurant: {
-            type: 'string',
-            description: 'Name of the restaurant'
-          }
+        time: {
+          type: "string",
+          description: "The time for the booking in HH:MM format (24-hour)"
         },
-        required: ['restaurant']
-      }
+        partySize: {
+          type: "integer",
+          description: "Number of people in the party"
+        },
+        specialRequests: {
+          type: "string",
+          description: "Any special requests for the booking (optional)"
+        },
+        userId: {
+          type: "integer",
+          description: "User ID for whom to make the booking"
+        }
+      },
+      required: ["restaurant", "date", "time", "partySize", "userId"]
     }
   }
-];
+};
 
-/**
- * Handle the makeReservation tool call
- */
-export async function handleMakeReservation(params: any): Promise<any> {
-  try {
-    console.log(`AI assistant attempting to make reservation at ${params.restaurant}`);
-    
-    // Find the restaurant
-    const restaurant = await findRestaurantByName(params.restaurant);
-    
-    if (!restaurant) {
-      return {
-        success: false,
-        error: `Restaurant "${params.restaurant}" not found in our database.`
-      };
+// Define the JSON schema for checking availability at a restaurant
+export const CheckAvailabilityToolSchema = {
+  type: "function",
+  function: {
+    name: "check_availability",
+    description: "Check if a restaurant has availability for a given date and time range",
+    parameters: {
+      type: "object",
+      properties: {
+        restaurant: {
+          type: "string",
+          description: "The name of the restaurant to check"
+        },
+        date: {
+          type: "string",
+          description: "The date to check in YYYY-MM-DD format"
+        },
+        partySize: {
+          type: "integer",
+          description: "Number of people in the party"
+        },
+        timeRange: {
+          type: "object",
+          properties: {
+            start: {
+              type: "string",
+              description: "Start time in HH:MM format (24-hour)"
+            },
+            end: {
+              type: "string",
+              description: "End time in HH:MM format (24-hour)"
+            }
+          },
+          required: ["start", "end"]
+        }
+      },
+      required: ["restaurant", "date", "partySize"]
     }
-    
-    // Parse the date
-    let bookingDate: Date;
+  }
+};
+
+// Define the JSON schema for getting a restaurant's booking info
+export const GetRestaurantInfoToolSchema = {
+  type: "function",
+  function: {
+    name: "get_restaurant_info",
+    description: "Get detailed booking information about a specific restaurant",
+    parameters: {
+      type: "object",
+      properties: {
+        restaurant: {
+          type: "string",
+          description: "The name of the restaurant to look up"
+        }
+      },
+      required: ["restaurant"]
+    }
+  }
+};
+
+// Define the JSON schema for finding alternative restaurants
+export const FindAlternativeRestaurantsToolSchema = {
+  type: "function",
+  function: {
+    name: "find_alternative_restaurants",
+    description: "Find alternative restaurants similar to the specified one",
+    parameters: {
+      type: "object",
+      properties: {
+        restaurant: {
+          type: "string",
+          description: "The name of the restaurant to find alternatives for"
+        },
+        cuisine: {
+          type: "string",
+          description: "Filter by cuisine type (optional)"
+        },
+        location: {
+          type: "string",
+          description: "Filter by location/area (optional)"
+        },
+        difficulty: {
+          type: "string",
+          description: "Filter by booking difficulty (easy, medium, hard) (optional)"
+        }
+      },
+      required: ["restaurant"]
+    }
+  }
+};
+
+// Tool implementations
+export const bookingTools = {
+  // Book a restaurant 
+  async book_restaurant(args: any) {
     try {
-      bookingDate = new Date(params.date);
-      if (isNaN(bookingDate.getTime())) {
-        throw new Error('Invalid date format');
+      console.log(`AI assistant is trying to book a restaurant: ${args.restaurant}`);
+      
+      // Find the restaurant
+      const restaurant = await storage.getRestaurantByName(args.restaurant);
+      
+      if (!restaurant) {
+        return {
+          success: false,
+          error: `Restaurant not found: ${args.restaurant}`
+        };
       }
-    } catch (error) {
+      
+      // Parse the date
+      let bookingDate: Date;
+      try {
+        bookingDate = new Date(args.date);
+        if (isNaN(bookingDate.getTime())) {
+          throw new Error('Invalid date format');
+        }
+      } catch (dateError) {
+        return {
+          success: false,
+          error: `Invalid date format: ${args.date}. Please use YYYY-MM-DD format.`
+        };
+      }
+      
+      // Create a booking request
+      const bookingRequest = {
+        restaurantId: restaurant.id,
+        userId: args.userId,
+        date: bookingDate,
+        time: args.time,
+        partySize: args.partySize,
+        specialRequests: args.specialRequests,
+        useRealScraping: config.bookingAgent.useRealScraping,
+        acceptSimilarTimes: true // Allow similar times if exact time not available
+      };
+      
+      // Attempt to create the booking
+      console.log(`Creating booking for ${restaurant.name} at ${args.time} for ${args.partySize} people`);
+      
+      // Use the booking service to create the booking
+      const result = await bookingService.bookTable(restaurant, bookingRequest);
+      
+      // Return the result
+      if (result.success) {
+        return {
+          success: true,
+          confirmationCode: result.confirmationCode || 'pending',
+          message: `Successfully booked a table at ${restaurant.name} for ${args.date} at ${args.time} for ${args.partySize} people.`,
+          simulation: result.simulation
+        };
+      } else {
+        return {
+          success: false,
+          error: result.error || 'Failed to book restaurant',
+          logs: result.logs || []
+        };
+      }
+    } catch (error: any) {
+      console.error('Error in book_restaurant tool:', error);
       return {
         success: false,
-        error: `Invalid date format: ${params.date}. Please use YYYY-MM-DD.`
+        error: error.message || 'Unknown error occurred'
       };
     }
-    
-    // Create the booking request
-    const bookingRequest = {
-      restaurantId: restaurant.id,
-      userId: params.userId,
-      date: bookingDate,
-      time: params.time,
-      partySize: params.partySize,
-      specialRequests: params.specialRequests,
-      // Add optional parameters
-      priorityBooking: params.priorityBooking || false,
-      acceptSimilarTimes: params.acceptSimilarTimes || false,
-      autoConfirm: params.autoConfirm || false,
-      useRealScraping: params.useRealScraping || false
-    };
-    
-    // Get automated booking service
-    const { automatedBookingService } = await import('../automatedBookingService');
-    
-    // Make the booking
-    const result = await automatedBookingService.createBooking(bookingRequest);
-    
-    // Return a user-friendly response
-    if (result.success) {
+  },
+  
+  // Check restaurant availability
+  async check_availability(args: any) {
+    try {
+      console.log(`Checking availability at ${args.restaurant} on ${args.date}`);
+      
+      // Find the restaurant
+      const restaurant = await storage.getRestaurantByName(args.restaurant);
+      
+      if (!restaurant) {
+        return {
+          success: false,
+          error: `Restaurant not found: ${args.restaurant}`
+        };
+      }
+      
+      // In a real implementation, this would use web scraping or API calls
+      // to check actual availability. For now, return simulated results.
+      const availableTimes = ['18:00', '18:30', '21:00', '21:30'];
+      
+      // For simulation, if it's a "hard" restaurant, show fewer slots
+      if (restaurant.bookingDifficulty === 'hard') {
+        return {
+          success: true,
+          restaurant: restaurant.name,
+          date: args.date,
+          availableTimes: availableTimes.slice(2), // Only late times available
+          message: "Limited availability found. This restaurant is very popular and only has late evening slots available."
+        };
+      }
+      
       return {
         success: true,
-        message: `Successfully booked a table at ${restaurant.name} on ${params.date} at ${params.time} for ${params.partySize} people.`,
-        booking: result.booking,
-        status: 'pending'
+        restaurant: restaurant.name,
+        date: args.date,
+        availableTimes: availableTimes,
+        message: "Several time slots are available for your requested date."
       };
-    } else {
+    } catch (error: any) {
+      console.error('Error in check_availability tool:', error);
       return {
         success: false,
-        error: result.message || 'Failed to make reservation'
+        error: error.message || 'Unknown error occurred'
       };
     }
-  } catch (error: any) {
-    console.error('Error in handleMakeReservation:', error);
-    return {
-      success: false,
-      error: `Error making reservation: ${error.message || error}`
-    };
-  }
-}
-
-/**
- * Handle the findAvailability tool call
- */
-export async function handleFindAvailability(params: any): Promise<any> {
-  try {
-    console.log(`AI assistant checking availability at ${params.restaurant}`);
-    
-    // Find the restaurant
-    const restaurant = await findRestaurantByName(params.restaurant);
-    
-    if (!restaurant) {
-      return {
-        success: false,
-        error: `Restaurant "${params.restaurant}" not found in our database.`
-      };
-    }
-    
-    // Parse the date
-    let checkDate: Date;
+  },
+  
+  // Get restaurant information
+  async get_restaurant_info(args: any) {
     try {
-      checkDate = new Date(params.date);
-      if (isNaN(checkDate.getTime())) {
-        throw new Error('Invalid date format');
-      }
-    } catch (error) {
-      return {
-        success: false,
-        error: `Invalid date format: ${params.date}. Please use YYYY-MM-DD.`
-      };
-    }
-    
-    // In a real implementation, we would check the actual availability
-    // For now, simulate a check based on difficulty
-    const difficulty = restaurant.bookingDifficulty || 'medium';
-    const day = checkDate.getDay(); // 0 is Sunday, 6 is Saturday
-    const isWeekend = day === 0 || day === 5 || day === 6;
-    
-    // Simulate available times based on difficulty and day
-    let availableTimes: string[] = [];
-    
-    if (difficulty === 'easy') {
-      availableTimes = ['17:00', '17:30', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00'];
-    } else if (difficulty === 'medium') {
-      availableTimes = isWeekend 
-        ? ['17:00', '17:30', '21:00', '21:30'] 
-        : ['17:00', '17:30', '18:00', '20:30', '21:00', '21:30'];
-    } else if (difficulty === 'hard') {
-      availableTimes = isWeekend
-        ? ['17:00', '21:30']
-        : ['17:00', '17:30', '21:00', '21:30'];
-    }
-    
-    // Filter by time range if provided
-    if (params.timeRange) {
-      const [startStr, endStr] = params.timeRange.split('-');
-      const startMinutes = timeToMinutes(startStr);
-      const endMinutes = timeToMinutes(endStr);
+      // Find the restaurant
+      const restaurant = await storage.getRestaurantByName(args.restaurant);
       
-      if (!isNaN(startMinutes) && !isNaN(endMinutes)) {
-        availableTimes = availableTimes.filter(time => {
-          const minutes = timeToMinutes(time);
-          return minutes >= startMinutes && minutes <= endMinutes;
-        });
+      if (!restaurant) {
+        return {
+          success: false,
+          error: `Restaurant not found: ${args.restaurant}`
+        };
       }
-    }
-    
-    return {
-      success: true,
-      restaurant: restaurant.name,
-      date: params.date,
-      partySize: params.partySize,
-      availableTimes,
-      message: availableTimes.length > 0
-        ? `Found ${availableTimes.length} available time${availableTimes.length === 1 ? '' : 's'} at ${restaurant.name} on ${params.date} for ${params.partySize} people.`
-        : `No availability found at ${restaurant.name} on ${params.date} for ${params.partySize} people.`
-    };
-  } catch (error: any) {
-    console.error('Error in handleFindAvailability:', error);
-    return {
-      success: false,
-      error: `Error checking availability: ${error.message || error}`
-    };
-  }
-}
-
-/**
- * Handle the getRestaurantInfo tool call
- */
-export async function handleGetRestaurantInfo(params: any): Promise<any> {
-  try {
-    console.log(`AI assistant getting information for ${params.restaurant}`);
-    
-    // Find the restaurant
-    const restaurant = await findRestaurantByName(params.restaurant);
-    
-    if (!restaurant) {
+      
+      // Return restaurant details
+      return {
+        success: true,
+        restaurant: {
+          name: restaurant.name,
+          cuisine: restaurant.cuisine,
+          location: restaurant.location,
+          bookingDifficulty: restaurant.bookingDifficulty,
+          bookingInfo: restaurant.bookingInfo,
+          bookingPlatform: restaurant.bookingPlatform,
+          description: restaurant.description
+        }
+      };
+    } catch (error: any) {
+      console.error('Error in get_restaurant_info tool:', error);
       return {
         success: false,
-        error: `Restaurant "${params.restaurant}" not found in our database.`
+        error: error.message || 'Unknown error occurred'
       };
     }
-    
-    // Return restaurant information
-    return {
-      success: true,
-      name: restaurant.name,
-      cuisine: restaurant.cuisine,
-      location: restaurant.location,
-      description: restaurant.description,
-      bookingDifficulty: restaurant.bookingDifficulty,
-      bookingInfo: restaurant.bookingInfo,
-      bookingPlatform: restaurant.bookingPlatform,
-      bookingNotes: restaurant.bookingNotes || 'No additional booking notes',
-      message: `${restaurant.name} is a ${restaurant.cuisine} restaurant located in ${restaurant.location}. ${restaurant.description}. Booking difficulty: ${restaurant.bookingDifficulty}. ${restaurant.bookingInfo}`
-    };
-  } catch (error: any) {
-    console.error('Error in handleGetRestaurantInfo:', error);
-    return {
-      success: false,
-      error: `Error getting restaurant information: ${error.message || error}`
-    };
+  },
+  
+  // Find alternative restaurants
+  async find_alternative_restaurants(args: any) {
+    try {
+      // Find the reference restaurant
+      const referenceRestaurant = await storage.getRestaurantByName(args.restaurant);
+      
+      if (!referenceRestaurant) {
+        return {
+          success: false,
+          error: `Restaurant not found: ${args.restaurant}`
+        };
+      }
+      
+      // Start with cuisine-based filtering
+      let restaurants;
+      if (args.cuisine) {
+        restaurants = await storage.getRestaurantsByCuisine(args.cuisine);
+      } else if (referenceRestaurant.cuisine) {
+        restaurants = await storage.getRestaurantsByCuisine(referenceRestaurant.cuisine);
+      } else {
+        restaurants = await storage.getRestaurants();
+      }
+      
+      // Apply additional filters if provided
+      if (args.location) {
+        restaurants = restaurants.filter(r => 
+          r.location.toLowerCase().includes(args.location.toLowerCase())
+        );
+      }
+      
+      if (args.difficulty) {
+        restaurants = restaurants.filter(r => 
+          r.bookingDifficulty === args.difficulty
+        );
+      }
+      
+      // Remove the reference restaurant from results
+      restaurants = restaurants.filter(r => r.id !== referenceRestaurant.id);
+      
+      // Limit to 5 alternatives
+      const alternatives = restaurants.slice(0, 5).map(r => ({
+        name: r.name,
+        cuisine: r.cuisine,
+        location: r.location,
+        bookingDifficulty: r.bookingDifficulty,
+        bookingPlatform: r.bookingPlatform
+      }));
+      
+      return {
+        success: true,
+        alternativeCount: alternatives.length,
+        alternatives,
+        message: alternatives.length > 0 
+          ? `Found ${alternatives.length} alternative restaurants similar to ${args.restaurant}` 
+          : `No alternatives found for ${args.restaurant} with the specified criteria`
+      };
+    } catch (error: any) {
+      console.error('Error in find_alternative_restaurants tool:', error);
+      return {
+        success: false,
+        error: error.message || 'Unknown error occurred'
+      };
+    }
   }
+};
+
+// Get all booking tools
+export function getBookingTools() {
+  return [
+    BookRestaurantToolSchema,
+    CheckAvailabilityToolSchema,
+    GetRestaurantInfoToolSchema,
+    FindAlternativeRestaurantsToolSchema
+  ];
 }
 
-/**
- * Helper function to find a restaurant by name
- */
-async function findRestaurantByName(name: string): Promise<Restaurant | undefined> {
-  // Get all restaurants
-  const restaurants = await storage.getRestaurants();
-  
-  // Find the best match
-  const normalizedSearchName = name.toLowerCase().trim();
-  
-  // First try exact match
-  let restaurant = restaurants.find(r => 
-    r.name.toLowerCase() === normalizedSearchName
-  );
-  
-  // If no exact match, try partial match
-  if (!restaurant) {
-    restaurant = restaurants.find(r => 
-      r.name.toLowerCase().includes(normalizedSearchName) || 
-      normalizedSearchName.includes(r.name.toLowerCase())
-    );
+// Dispatch tool calls to the appropriate handler
+export async function handleBookingToolCall(tool: string, args: any) {
+  const handler = bookingTools[tool as keyof typeof bookingTools];
+  if (handler) {
+    return await handler(args);
   }
-  
-  return restaurant;
-}
-
-/**
- * Helper function to convert time string to minutes
- */
-function timeToMinutes(timeStr: string): number {
-  const [hours, minutes] = timeStr.split(':').map(Number);
-  if (isNaN(hours) || isNaN(minutes)) {
-    return NaN;
-  }
-  return hours * 60 + minutes;
+  return {
+    success: false,
+    error: `Unknown tool: ${tool}`
+  };
 }
