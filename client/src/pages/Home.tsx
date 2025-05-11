@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import BookingModal from '@/components/BookingModal';
 import { useBooking } from '@/hooks/useBooking';
-import { AiChatTester } from '@/components/AiChatTester';
-import MCPChatInterface from '@/components/MCPChatInterface';
+import MCPXChatInterface from '@/components/MCPXChatInterface';
 import type { Restaurant } from '@shared/schema';
 
 const Home = () => {
@@ -64,7 +63,10 @@ const Home = () => {
           <div className="space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <MCPChatInterface restaurants={restaurants} />
+                <MCPXChatInterface 
+                  restaurants={restaurants} 
+                  initialSystemPrompt="You are the Prime Table AI booking assistant for London's most exclusive restaurants. Help users find and book restaurants that match their preferences. Always be helpful, concise, and focused on booking assistance."
+                />
               </div>
               <div className="lg:col-span-1">
                 <div className="bg-white rounded-lg shadow-md p-6">
