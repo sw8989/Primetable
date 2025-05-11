@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import PuppeteerBookingTester from "@/components/PuppeteerBookingTester";
 import BookingToolTester from "@/components/BookingToolTester";
+import PlatformDetectionTester from "@/components/PlatformDetectionTester";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -38,9 +39,10 @@ export default function AutomationTestPage() {
       </div>
       
       <Tabs defaultValue="puppeteer" className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
+        <TabsList className="grid w-full grid-cols-3">
           <TabsTrigger value="puppeteer">Puppeteer MCP</TabsTrigger>
           <TabsTrigger value="tools">AI Booking Tools</TabsTrigger>
+          <TabsTrigger value="platform">Platform Detection</TabsTrigger>
         </TabsList>
         
 
@@ -72,6 +74,13 @@ export default function AutomationTestPage() {
           )}
         </TabsContent>
         
+        <TabsContent value="platform" className="mt-6">
+          <h2 className="text-2xl font-semibold mb-4">Restaurant Platform Detection</h2>
+          <p className="text-muted-foreground mb-6">
+            Detect the reservation platform used by a restaurant website (OpenTable, Resy, etc.)
+          </p>
+          <PlatformDetectionTester />
+        </TabsContent>
 
       </Tabs>
     </div>
