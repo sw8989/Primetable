@@ -29,10 +29,16 @@ export default function BookingToolTester({ restaurants }: { restaurants: any[] 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
-  // Get unique values for filters
-  const cuisines = [...new Set(restaurants.map((r) => r.cuisine))];
-  const locations = [...new Set(restaurants.map((r) => r.location))];
-  const difficulties = [...new Set(restaurants.map((r) => r.bookingDifficulty))];
+  // Get unique values for filters using filter approach instead of Set
+  const cuisines = restaurants
+    .map((r) => r.cuisine)
+    .filter((value, index, self) => self.indexOf(value) === index);
+  const locations = restaurants
+    .map((r) => r.location)
+    .filter((value, index, self) => self.indexOf(value) === index);
+  const difficulties = restaurants
+    .map((r) => r.bookingDifficulty)
+    .filter((value, index, self) => self.indexOf(value) === index);
 
   const handleToolCall = async () => {
     setLoading(true);

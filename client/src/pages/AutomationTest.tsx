@@ -2,9 +2,9 @@ import { useState, useEffect } from "react";
 import AutomatedBookingTester from "@/components/AutomatedBookingTester";
 import PuppeteerBookingTester from "@/components/PuppeteerBookingTester";
 import FireCrawlTester from "@/components/FireCrawlTester";
+import BookingToolTester from "@/components/BookingToolTester";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Skeleton } from "@/components/ui/skeleton";
-import { apiRequest } from "@/lib/queryClient";
 
 export default function AutomationTestPage() {
   const [restaurants, setRestaurants] = useState<any[]>([]);
@@ -39,9 +39,10 @@ export default function AutomationTestPage() {
       </p>
       
       <Tabs defaultValue="booking" className="w-full">
-        <TabsList className="grid w-full grid-cols-3">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="booking">Standard Booking</TabsTrigger>
           <TabsTrigger value="puppeteer">Puppeteer MCP</TabsTrigger>
+          <TabsTrigger value="tools">AI Booking Tools</TabsTrigger>
           <TabsTrigger value="search">Web Search</TabsTrigger>
         </TabsList>
         
@@ -70,6 +71,20 @@ export default function AutomationTestPage() {
             </div>
           ) : (
             <PuppeteerBookingTester restaurants={restaurants} />
+          )}
+        </TabsContent>
+        
+        <TabsContent value="tools" className="mt-6">
+          <h2 className="text-2xl font-semibold mb-4">AI Booking Tools</h2>
+          <p className="text-muted-foreground mb-6">
+            Test the AI booking tools directly to check restaurant availability and make reservations.
+          </p>
+          {loading ? (
+            <div>
+              <Skeleton className="h-[300px] w-full" />
+            </div>
+          ) : (
+            <BookingToolTester restaurants={restaurants} />
           )}
         </TabsContent>
         
