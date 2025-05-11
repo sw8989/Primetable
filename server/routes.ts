@@ -366,10 +366,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Chatbot test endpoint
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
-      const { message, restaurantId, messages } = req.body;
+      const { message, restaurantId, messages, tools } = req.body;
       
       if (!message && !messages) {
-        return res.status(400).json({ message: "Message or message history is required" });
+        return res.status(400).json({ 
+          error: "Message or message history is required" 
+        });
       }
       
       // Default context for general restaurant booking inquiries
@@ -392,37 +394,72 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Check if this is an MCP-style request with message history
-      const isMcpRequest = Array.isArray(messages) && messages.length > 0;
-      let response;
+      // Determine if this is an MCPX-style request with message history
+      const isMcpxRequest = Array.isArray(messages) && messages.length > 0;
+      const hasTools = Array.isArray(tools) && tools.length > 0;
       
       try {
         const service = aiService.getService();
         
         // Use the appropriate service method based on request type
         if (service) {
-          if (isMcpRequest && service.processMcpChat) {
+          if (isMcpxRequest && service.processMcpChat) {
             // Use MCP protocol with message history
             console.log('Using MCP chat protocol with message history', { 
               service: service.name || 'unknown',
               messageCount: messages.length,
+              hasTools: hasTools,
+              toolCount: hasTools ? tools.length : 0,
               context: context.substring(0, 50) + '...'
             });
-            const mcpResponse = await service.processMcpChat(messages, context, restaurant);
-            console.log('MCP response:', JSON.stringify(mcpResponse).substring(0, 100) + '...');
-            return res.json(mcpResponse); 
+            
+            // Process the chat with the MCP protocol
+            const mcpResponse = await service.processMcpChat(messages, context, restaurant, tools);
+            
+            // Log response for debugging (shortened to avoid cluttering logs)
+            if (typeof mcpResponse === 'object') {
+              const logResponse = { ...mcpResponse };
+              if (logResponse.content && typeof logResponse.content === 'string' && logResponse.content.length > 100) {
+                logResponse.content = logResponse.content.substring(0, 100) + '...';
+              }
+              console.log('MCP response:', JSON.stringify(logResponse));
+            }
+            
+            // Return the MCPX-formatted response
+            return res.json({ 
+              message: mcpResponse 
+            });
           } else if (service.processChat) {
             // Fallback to standard chat interface
             console.log('Using standard chat interface with service:', service.name || 'unknown');
-            response = await service.processChat(message, context);
-            console.log('Chat response:', response.substring(0, 100) + '...');
+            const response = await service.processChat(message, context);
+            
+            // Format as an MCPX message for compatibility
+            const formattedResponse = {
+              role: 'assistant',
+              content: response
+            };
+            
+            return res.json({ 
+              message: formattedResponse 
+            });
           } else {
             console.log('No chat processing available');
-            response = "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?";
+            return res.json({ 
+              message: {
+                role: 'assistant',
+                content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+              }
+            });
           }
         } else {
           console.log('Falling back to simulation mode - no AI service available');
-          response = "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?";
+          return res.json({ 
+            message: {
+              role: 'assistant',
+              content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+            }
+          });
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
@@ -433,17 +470,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
           openAIError.status === 429 || 
           (openAIError.error && openAIError.error.code === 'insufficient_quota')
         ) {
-          response = "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance.";
+          return res.json({ 
+            message: {
+              role: 'assistant',
+              content: "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance."
+            }
+          });
         } else {
-          response = "I encountered an issue processing your request. Please try again later.";
+          return res.json({ 
+            message: {
+              role: 'assistant',
+              content: "I encountered an issue processing your request. Please try again later."
+            }
+          });
         }
       }
-      
-      // For non-MCP requests, return simple response
-      res.json({ response });
     } catch (error) {
       console.error("Chat error:", error);
-      res.status(500).json({ message: "Error processing chat request" });
+      res.status(500).json({ 
+        error: "Error processing chat request",
+        message: {
+          role: 'assistant',
+          content: "I apologize, but I encountered an unexpected error. Please try again later."
+        }
+      });
     }
   });
 
