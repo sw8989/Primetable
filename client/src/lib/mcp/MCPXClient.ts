@@ -406,16 +406,47 @@ export class MCPXClient {
     } catch (error) {
       console.error(`Error executing tool ${toolCall.function.name}:`, error);
       
+      // Prepare error message
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      
+      // Format error content based on the tool type for better UX
+      let errorContent;
+      if (toolCall.function.name === 'detect_booking_platform') {
+        errorContent = JSON.stringify({
+          success: false,
+          error: errorMessage,
+          platform: 'unknown',
+          platformName: 'Unknown Platform',
+          confidence: 0
+        });
+      } else if (toolCall.function.name === 'search_restaurants') {
+        errorContent = JSON.stringify({
+          success: false,
+          error: errorMessage,
+          restaurants: []
+        });
+      } else if (toolCall.function.name === 'check_availability') {
+        errorContent = JSON.stringify({
+          success: false,
+          error: errorMessage,
+          available: false,
+          alternatives: []
+        });
+      } else {
+        // Default error format
+        errorContent = JSON.stringify({
+          success: false,
+          error: errorMessage
+        });
+      }
+      
       // Return error result
       return {
         tool_call_id: toolCall.id,
         type: 'function',
         function: {
           name: toolCall.function.name,
-          content: JSON.stringify({
-            error: error instanceof Error ? error.message : 'Unknown error',
-            success: false
-          })
+          content: errorContent
         }
       };
     }

@@ -545,7 +545,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (toolName === 'book_restaurant' || 
           toolName === 'check_availability' || 
           toolName === 'get_restaurant_info' ||
-          toolName === 'find_alternative_restaurants') {
+          toolName === 'find_alternative_restaurants' ||
+          toolName === 'detect_booking_platform') {
         
         // Import the booking tools handler
         const { handleBookingToolCall } = await import('./services/ai/bookingTools');
