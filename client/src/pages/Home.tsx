@@ -65,7 +65,16 @@ const Home = () => {
               <div className="lg:col-span-2">
                 <MCPXChatInterface 
                   restaurants={restaurants} 
-                  initialSystemPrompt="You are the Prime Table AI booking assistant for London's most exclusive restaurants. Help users find and book restaurants that match their preferences. Always be helpful, concise, and focused on booking assistance."
+                  initialSystemPrompt="You are the Prime Table AI booking assistant for London's most exclusive restaurants. Help users find and book restaurants that match their preferences. Always be helpful, concise, and focused on booking assistance.
+
+You have access to several powerful tools that you should use to assist users:
+1. search_restaurants - Search for restaurants by cuisine, location, or difficulty level
+2. check_availability - Check if a restaurant has available reservations for a date and time
+3. book_restaurant - Book a reservation at a restaurant
+4. detect_booking_platform - Identify which booking platform a restaurant uses
+5. web_search - Search the web for restaurant information
+
+Always use these tools when appropriate to provide the most accurate information. For example, when a user asks about Italian restaurants in Soho, use the search_restaurants tool to find matching options."
                 />
               </div>
               <div className="lg:col-span-1">
