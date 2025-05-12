@@ -138,15 +138,40 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
     if (!Array.isArray(toolCalls) || toolCalls.length === 0) return '';
     
     return toolCalls.map(tc => {
-      // Handle different tool call formats (MCPX vs legacy)
-      if (tc.function && tc.function.name) {
-        return tc.function.name;
-      } else if (tc.tool) {
-        // Legacy format
-        return tc.tool;
-      } else {
-        // Unknown format
-        return 'unknown tool';
+      try {
+        // Handle different tool call formats (MCPX vs legacy)
+        if (tc.function && tc.function.name) {
+          // If we have arguments, try to extract key info
+          let displayName = tc.function.name;
+          
+          if (tc.function.arguments) {
+            try {
+              const args = JSON.parse(tc.function.arguments);
+              
+              // For search tools, show the query
+              if (displayName.includes('search') && args.query) {
+                displayName += `: "${args.query}"`;
+              } 
+              // For restaurant-specific tools, show the restaurant name
+              else if (args.restaurant_id) {
+                displayName += ` #${args.restaurant_id}`;
+              }
+            } catch (e) {
+              // Ignore parsing errors
+            }
+          }
+          
+          return displayName;
+        } else if (tc.tool) {
+          // Legacy format
+          return tc.tool;
+        } else {
+          // Unknown format
+          return 'unknown tool';
+        }
+      } catch (error) {
+        console.error('Error formatting tool call:', error, tc);
+        return 'error formatting tool';
       }
     }).join(', ');
   };
@@ -211,12 +236,96 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
               
               {message.role === 'tool' && (
                 <div className="text-xs font-medium mb-1 flex items-center gap-1">
+                  {/* Determine which property to use for the tool name */}
                   {message.name && getToolIcon(message.name)}
-                  {message.name || 'Tool'} result
+                  {message.name || (message.tool_call_id ? 'Tool result' : 'Tool')}
                 </div>
               )}
               
-              <div>{message.content}</div>
+              {/* Better formatting for tool results */}
+              {message.role === 'tool' ? (
+                <div className="tool-result">
+                  {(() => {
+                    try {
+                      // Try to parse JSON content for better formatting
+                      const parsedContent = JSON.parse(message.content);
+                      
+                      // For restaurant search results
+                      if (parsedContent.restaurants) {
+                        return (
+                          <div>
+                            <div className="text-sm font-medium mb-1">
+                              {parsedContent.restaurants.length > 0 
+                                ? `Found ${parsedContent.restaurants.length} restaurant(s)` 
+                                : 'No restaurants found'}
+                            </div>
+                            
+                            {parsedContent.restaurants.slice(0, 3).map((restaurant: any, idx: number) => (
+                              <div key={idx} className="text-sm mb-1 border-l-2 border-blue-200 pl-2">
+                                <strong>{restaurant.name}</strong> - {restaurant.cuisine} in {restaurant.location}
+                                <div className="text-xs">{restaurant.description?.substring(0, 100)}...</div>
+                              </div>
+                            ))}
+                            
+                            {parsedContent.restaurants.length > 3 && (
+                              <div className="text-xs italic">
+                                ...and {parsedContent.restaurants.length - 3} more restaurants
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // For availability results
+                      if ('available' in parsedContent) {
+                        return (
+                          <div>
+                            {parsedContent.available 
+                              ? <div className="text-sm text-green-700 dark:text-green-400">✓ Available for booking</div>
+                              : <div className="text-sm text-red-600 dark:text-red-400">✗ Not available for booking</div>
+                            }
+                            
+                            {parsedContent.alternatives && parsedContent.alternatives.length > 0 && (
+                              <div className="mt-2">
+                                <div className="text-xs font-medium">Alternative times:</div>
+                                {parsedContent.alternatives.map((alt: any, idx: number) => (
+                                  <div key={idx} className="text-xs mt-1">{alt.date} at {alt.time}</div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      }
+                      
+                      // For booking results
+                      if (parsedContent.booking) {
+                        return (
+                          <div>
+                            <div className="text-sm text-green-700 dark:text-green-400">
+                              ✓ Booking confirmed #{parsedContent.booking.id}
+                            </div>
+                            <div className="text-xs mt-1">
+                              {parsedContent.booking.date} at {parsedContent.booking.time}
+                            </div>
+                          </div>
+                        );
+                      }
+                      
+                      // Generic JSON formatting
+                      return (
+                        <pre className="text-xs overflow-auto max-h-[200px] whitespace-pre-wrap">
+                          {JSON.stringify(parsedContent, null, 2)}
+                        </pre>
+                      );
+                    } catch (e) {
+                      // If not JSON, just show as text
+                      return <div>{message.content}</div>;
+                    }
+                  })()}
+                </div>
+              ) : (
+                <div>{message.content}</div>
+              )}
             </div>
           </div>
         ))}
