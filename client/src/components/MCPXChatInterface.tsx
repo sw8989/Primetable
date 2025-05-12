@@ -132,12 +132,40 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
   
   // Format tool calls for display
   const formatToolCalls = (toolCalls: any[]) => {
-    return toolCalls.map(tc => tc.function.name).join(', ');
+    if (!Array.isArray(toolCalls) || toolCalls.length === 0) return '';
+    
+    return toolCalls.map(tc => {
+      // Handle different tool call formats (MCPX vs legacy)
+      if (tc.function && tc.function.name) {
+        return tc.function.name;
+      } else if (tc.tool) {
+        // Legacy format
+        return tc.tool;
+      } else {
+        // Unknown format
+        return 'unknown tool';
+      }
+    }).join(', ');
   };
   
   // Get icon for a tool
   const getToolIcon = (toolName: string) => {
-    return TOOL_ICONS[toolName] || TOOL_ICONS.default;
+    if (!toolName) return TOOL_ICONS.default;
+    
+    // Try to find a matching icon by full name
+    if (TOOL_ICONS[toolName]) {
+      return TOOL_ICONS[toolName];
+    }
+    
+    // Try to find a partial match (e.g., "search_restaurants_tool" should match "search_restaurants")
+    for (const key of Object.keys(TOOL_ICONS)) {
+      if (toolName.includes(key)) {
+        return TOOL_ICONS[key];
+      }
+    }
+    
+    // Default icon if no match found
+    return TOOL_ICONS.default;
   };
   
   // Reset the conversation
@@ -171,7 +199,7 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
             <div
               className={`max-w-[80%] rounded-lg px-4 py-2 shadow-sm ${getMessageStyle(message.role)}`}
             >
-              {message.role === 'assistant' && message.tool_calls && (
+              {message.role === 'assistant' && message.tool_calls && Array.isArray(message.tool_calls) && message.tool_calls.length > 0 && (
                 <div className="text-xs italic mb-1 flex items-center gap-1">
                   <Wrench className="h-3 w-3" />
                   Using tools: {formatToolCalls(message.tool_calls)}
