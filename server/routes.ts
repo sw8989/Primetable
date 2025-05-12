@@ -375,7 +375,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Default context for general restaurant booking inquiries
-      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants, called 'Prime Table'. Provide specific, actionable advice.";
+      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants, called 'Prime Table'. Provide specific, actionable advice. You have access to several tools that you should use to help users:\n\n1. search_restaurants - Search for restaurants by cuisine, location, or difficulty\n2. check_availability - Check if a restaurant has available reservations for a date and time\n3. book_restaurant - Book a reservation at a restaurant\n4. detect_booking_platform - Identify which booking platform a restaurant uses\n5. web_search - Search the web for restaurant information\n\nUse these tools whenever appropriate to provide the most accurate and helpful information to users.";
       let restaurant = null;
       
       // If a restaurant ID is provided, get details to provide a specific context
@@ -390,7 +390,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ${restaurant.bookingPlatform ? `This restaurant uses ${restaurant.bookingPlatform} for their reservation system.` : ''}
           
           The user is asking about this specific restaurant. Provide tailored advice and strategies for securing a booking, 
-          considering the restaurant's specific booking policies and difficulty level.`;
+          considering the restaurant's specific booking policies and difficulty level.
+          
+          You have access to several tools that you should use to help users:
+          1. check_availability - Check if this restaurant has available reservations for a date and time
+          2. book_restaurant - Book a reservation at this restaurant
+          3. detect_booking_platform - Identify which booking platform this restaurant uses
+          4. web_search - Search the web for more information about this restaurant
+          
+          Always use these tools when appropriate to provide the most accurate and helpful information.`;
         }
       }
       
