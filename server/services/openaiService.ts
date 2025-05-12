@@ -284,7 +284,8 @@ export async function processMcpChat(
   }
   
   try {
-    // Map the MCP message format to OpenAI format with a much simpler approach
+    // Map the MCP message format to OpenAI format - extremely simplified
+    // We're starting fresh with just essential messages to avoid validation errors
     const openaiMessages: any[] = [];
     
     // Always add system message first
@@ -293,16 +294,17 @@ export async function processMcpChat(
       content: context
     });
     
-    // Add only essential messages (user and assistant) to avoid OpenAI API validation errors
-    // This is a simplification that bypasses the complex tool message formatting issues
+    // We'll only include user and simple assistant messages - no tools at all
+    // This will make the API conversation work but without tool interactions
     for (const msg of messages) {
       if (msg.role === 'user') {
+        // User messages are straightforward
         openaiMessages.push({
           role: 'user',
           content: msg.content
         });
       } else if (msg.role === 'assistant' && !msg.tool_calls) {
-        // Only include simple text responses from assistant
+        // Only include simple assistant responses without tool calls
         openaiMessages.push({
           role: 'assistant',
           content: msg.content || ""
@@ -326,14 +328,53 @@ export async function processMcpChat(
         };
         openaiMessages.push(toolCallsMessage);
       }
-      // Skip tool messages entirely for now - they're causing validation errors
+      // Handle tool response messages correctly
+      else if (msg.role === 'tool') {
+        // Tool messages require special handling
+        // They must include 'name' instead of function_name for OpenAI API compatibility
+        const toolMessage: any = {
+          role: 'tool',
+          tool_call_id: msg.tool_call_id,
+          content: msg.content,
+          name: msg.function_name // This is what was missing - OpenAI requires 'name', not 'function_name'
+        };
+        
+        // Log for debugging
+        console.log('Adding formatted tool message:', {
+          tool_call_id: toolMessage.tool_call_id,
+          name: toolMessage.name,
+          content_preview: typeof toolMessage.content === 'string' 
+            ? toolMessage.content.substring(0, 30) + '...' 
+            : 'non-string content'
+        });
+        
+        openaiMessages.push(toolMessage);
+      }
     }
     
-    console.log('Simplified OpenAI messages:', openaiMessages.map(m => ({ 
-      role: m.role, 
-      has_content: !!m.content, 
-      has_tool_calls: !!m.tool_calls 
-    })));
+    // Log all messages for debugging purposes, including tool messages 
+    // which are crucial for diagnosing our "missing_required_parameter" error
+    console.log('OpenAI messages prepared for API call:', openaiMessages.map(m => {
+      const base = { 
+        role: m.role, 
+        has_content: !!m.content
+      };
+      
+      if (m.role === 'tool') {
+        return {
+          ...base,
+          tool_call_id: m.tool_call_id,
+          name: m.name  // This should now be properly set for tool messages
+        };
+      } else if (m.role === 'assistant' && m.tool_calls) {
+        return {
+          ...base,
+          tool_calls_count: m.tool_calls.length
+        };
+      }
+      
+      return base;
+    }));
     
     // Import booking tools
     const { bookingTools } = await import('./ai/bookingTools');
