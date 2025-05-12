@@ -307,33 +307,43 @@ export class MCPXClient {
       content: userMessage
     });
     
+    console.log('Processing user message:', userMessage);
+    console.log('Current conversation history:', this.messages.length, 'messages');
+    
     // Generate assistant response
     const assistantResponse = await this.generateResponse();
+    console.log('Assistant response:', assistantResponse);
     this.messages.push(assistantResponse);
     
     // Process any tool calls
     if (assistantResponse.tool_calls && assistantResponse.tool_calls.length > 0) {
-      // Execute each tool call
+      console.log(`Assistant requested ${assistantResponse.tool_calls.length} tool calls`);
+      
+      // Execute each tool call sequentially
       for (const toolCall of assistantResponse.tool_calls) {
+        console.log('Processing tool call:', toolCall);
         const toolResult = await this.executeToolCall(toolCall);
         
-        // Add tool result to conversation with proper tool_call_id (required by OpenAI)
-        // Include enhanced debug info to see what's happening
-        console.log('Tool result before adding to messages:', toolResult);
-        
+        // Create a properly formatted tool response message for OpenAI
+        // According to OpenAI docs, tool response messages:
+        // 1. Must have role = 'tool'
+        // 2. Must have tool_call_id matching the original tool_call
+        // 3. Must have content with the result string
+        // 4. Must NOT have a name property (this breaks OpenAI's parsing)
         const toolMessage: MCPXMessage = {
           role: 'tool',
-          // We DO NOT need to set name here - that was causing the OpenAI error
-          content: toolResult.function.content, 
-          tool_call_id: toolResult.tool_call_id  // This is the critical field for OpenAI to track correctly
+          content: toolResult.function.content,
+          tool_call_id: toolResult.tool_call_id
         };
         
-        console.log('Adding tool message to conversation:', toolMessage);
+        console.log('Adding tool response to conversation:', toolMessage);
         this.messages.push(toolMessage);
       }
       
-      // Generate follow-up response after tool calls
+      // After all tool calls are processed, generate a follow-up response
+      console.log('Generating follow-up response after tool execution');
       const followUpResponse = await this.generateResponse();
+      console.log('Follow-up response:', followUpResponse);
       this.messages.push(followUpResponse);
     }
     
@@ -386,6 +396,7 @@ export class MCPXClient {
     try {
       // Parse the arguments
       const args = JSON.parse(toolCall.function.arguments);
+      console.log(`Executing tool call: ${toolCall.function.name}`, args);
       
       // Call the server-side endpoint
       const response = await fetch('/api/mcp/tool-call', {
@@ -404,16 +415,20 @@ export class MCPXClient {
       }
       
       const result = await response.json();
+      console.log(`Tool execution result for ${toolCall.function.name}:`, result);
       
-      // Format as MCP tool result
-      return {
-        tool_call_id: toolCall.id,
+      // Format as MCP tool result - ensure proper formatting for OpenAI
+      const toolResult: MCPXToolResult = {
+        tool_call_id: toolCall.id,  // This is critical - must match the original tool call's ID
         type: 'function',
         function: {
           name: toolCall.function.name,
           content: JSON.stringify(result)
         }
       };
+      
+      console.log('Formatted tool result for MCP:', toolResult);
+      return toolResult;
     } catch (error) {
       console.error(`Error executing tool ${toolCall.function.name}:`, error);
       

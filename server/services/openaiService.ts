@@ -425,6 +425,18 @@ export async function processMcpChat(
     
     const responseMessage = response.choices[0].message;
     
+    // Debug log the OpenAI response structure
+    console.log('OpenAI response format:', {
+      has_content: !!responseMessage.content,
+      has_tool_calls: !!responseMessage.tool_calls,
+      tool_calls_count: responseMessage.tool_calls?.length || 0,
+      first_tool_call: responseMessage.tool_calls && responseMessage.tool_calls.length > 0 ? {
+        id: responseMessage.tool_calls[0].id,
+        type: responseMessage.tool_calls[0].type,
+        function_name: responseMessage.tool_calls[0].function?.name
+      } : null
+    });
+    
     // Convert OpenAI format back to MCP format
     const mcpResponse: { 
       role: string; 
