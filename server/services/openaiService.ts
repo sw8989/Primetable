@@ -261,7 +261,13 @@ export async function processChat(
  * @returns MCP-compliant response
  */
 export async function processMcpChat(
-  messages: Array<{ role: string; content: string; tool_calls?: any; tool_results?: any }>,
+  messages: Array<{ 
+    role: string; 
+    content: string; 
+    tool_calls?: any; 
+    tool_results?: any;
+    tool_call_id?: string; // Add this field for tool messages
+  }>,
   context: string,
   restaurant?: any
 ): Promise<{ 
@@ -280,11 +286,15 @@ export async function processMcpChat(
     // Map the MCP message format to OpenAI format
     const openaiMessages: any[] = messages.map(msg => {
       if (msg.role === 'tool') {
-        // Handle tool messages - convert to function messages with proper tool name
-        const toolName = (msg as any).tool_name || 'tool_response';
+        // Handle tool messages - in OpenAI's newer chat completions API format
+        // They MUST have a role='tool' and tool_call_id to match the original call
+        const toolCallId = (msg as any).tool_call_id;
+        if (!toolCallId) {
+          console.warn('Warning: tool message missing tool_call_id! This will cause OpenAI API errors.');
+        }
         return {
-          role: 'function',
-          name: toolName,
+          role: 'tool',
+          tool_call_id: toolCallId || 'missing_id',
           content: typeof msg.content === 'string' 
             ? msg.content 
             : JSON.stringify(msg.content)
