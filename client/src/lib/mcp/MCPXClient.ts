@@ -16,6 +16,7 @@ export interface MCPXMessage {
   name?: string;  // Used for tool messages
   tool_calls?: MCPXToolCall[];
   tool_results?: MCPXToolResult[];
+  tool_call_id?: string;  // Used for tool messages to link to the original tool call
   
   // Legacy format support (for compatibility with previous MCP versions)
   tool?: string;  // Legacy format for tool name 
@@ -317,12 +318,18 @@ export class MCPXClient {
         const toolResult = await this.executeToolCall(toolCall);
         
         // Add tool result to conversation with proper tool_call_id (required by OpenAI)
-        this.messages.push({
+        // Include enhanced debug info to see what's happening
+        console.log('Tool result before adding to messages:', toolResult);
+        
+        const toolMessage: MCPXMessage = {
           role: 'tool',
-          name: toolCall.function.name,
-          content: toolResult.function.content,
-          tool_call_id: toolResult.tool_call_id  // This is critical for OpenAI to track correctly
-        });
+          // We DO NOT need to set name here - that was causing the OpenAI error
+          content: toolResult.function.content, 
+          tool_call_id: toolResult.tool_call_id  // This is the critical field for OpenAI to track correctly
+        };
+        
+        console.log('Adding tool message to conversation:', toolMessage);
+        this.messages.push(toolMessage);
       }
       
       // Generate follow-up response after tool calls

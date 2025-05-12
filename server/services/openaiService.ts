@@ -396,10 +396,28 @@ export async function processMcpChat(
     ];
     
     // Make the OpenAI API call with tools
+    // Ensure tools match OpenAI's expected format by using a type assertion
+    // This is safe since we know our tools follow the required structure
+    const openaiTools = tools.map(tool => {
+      if (typeof tool.type === 'string') {
+        // Force correct type for OpenAI tools
+        return {
+          type: 'function',
+          function: {
+            name: tool.function.name,
+            description: tool.function.description,
+            parameters: tool.function.parameters
+          }
+        };
+      }
+      return tool;
+    }) as any;
+    
+    // Type assertion for OpenAI's strict typing requirements
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: openaiMessages,
-      tools: tools,
+      tools: openaiTools as any,  // Use type assertion to avoid strict typing issues
       tool_choice: "auto",
       max_tokens: 800,
       temperature: 0.7
@@ -441,13 +459,13 @@ export async function processMcpChat(
             }
           }
           
-          // Add legacy format properties
-          mcpResponse.tool = toolName;
-          mcpResponse.parameters = args;
+          // Add legacy format properties (using any type to avoid TypeScript errors)
+          (mcpResponse as any).tool = toolName;
+          (mcpResponse as any).parameters = args;
         } catch (error) {
           console.error("Error parsing tool call arguments:", error);
-          mcpResponse.tool = firstTool.function.name;
-          mcpResponse.parameters = {};
+          (mcpResponse as any).tool = firstTool.function.name;
+          (mcpResponse as any).parameters = {};
         }
       }
     }
