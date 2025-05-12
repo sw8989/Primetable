@@ -508,6 +508,40 @@ export class MCPXClient {
       content: "Hello! I'm your restaurant booking assistant for London's most exclusive restaurants. How can I help you today? I can help you find restaurants, check availability, and make bookings."
     });
   }
+  
+  /**
+   * Test function to verify format conversion between legacy and MCPX
+   * This can be used to ensure our normalization works correctly
+   */
+  testFormatConversion(): void {
+    // Create a legacy format message
+    const legacyMessage: MCPXMessage = {
+      role: 'assistant',
+      content: '',
+      tool: 'search_restaurants',
+      parameters: {
+        query: 'Italian restaurants in Soho',
+        cuisine: 'Italian',
+        location: 'Soho'
+      }
+    };
+    
+    // Normalize to MCPX format
+    const normalizedMessage = this.normalizeToolCalls(legacyMessage);
+    
+    // Log both formats for inspection
+    console.log('Original legacy format:', legacyMessage);
+    console.log('Normalized MCPX format:', normalizedMessage);
+    
+    // Verify tool_calls was created with the correct structure
+    if (normalizedMessage.tool_calls && 
+        normalizedMessage.tool_calls.length > 0 &&
+        normalizedMessage.tool_calls[0].function?.name === 'search_restaurants') {
+      console.log('✓ Format conversion successful');
+    } else {
+      console.error('✗ Format conversion failed');
+    }
+  }
 }
 
 // Export a function to create MCPX client

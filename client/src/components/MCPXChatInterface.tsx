@@ -91,6 +91,9 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
         initialSystemPrompt: initialSystemPrompt || undefined
       });
       
+      // Test the format conversion between legacy and MCPX formats
+      client.testFormatConversion();
+      
       setMcpxClient(client);
       setMessages(client.getMessages());
     }
