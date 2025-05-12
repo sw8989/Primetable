@@ -417,14 +417,19 @@ export async function processMcpChat(
       content: responseMessage.content || ""
     };
     
-    // If the response includes tool calls, convert to MCP format
+    // If the response includes tool calls, keep the original MCPX format
     if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-      mcpResponse.tool_calls = responseMessage.tool_calls.map(toolCall => {
+      // Preserve the original MCPX tool_calls format but also add legacy format for backward compatibility
+      mcpResponse.tool_calls = responseMessage.tool_calls;
+      
+      // Also add legacy format properties for backward compatibility
+      const firstTool = responseMessage.tool_calls[0];
+      if (firstTool && firstTool.function) {
         try {
-          const args = JSON.parse(toolCall.function.arguments);
+          const args = JSON.parse(firstTool.function.arguments);
+          const toolName = firstTool.function.name;
           
           // Handle booking tool calls
-          const toolName = toolCall.function.name;
           if (toolName === 'makeReservation' || 
               toolName === 'findAvailability' || 
               toolName === 'getRestaurantInfo') {
@@ -436,18 +441,15 @@ export async function processMcpChat(
             }
           }
           
-          return {
-            tool: toolName,
-            parameters: args
-          };
+          // Add legacy format properties
+          mcpResponse.tool = toolName;
+          mcpResponse.parameters = args;
         } catch (error) {
           console.error("Error parsing tool call arguments:", error);
-          return {
-            tool: toolCall.function.name,
-            parameters: {}
-          };
+          mcpResponse.tool = firstTool.function.name;
+          mcpResponse.parameters = {};
         }
-      });
+      }
     }
     
     return mcpResponse;
