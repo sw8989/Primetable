@@ -316,12 +316,12 @@ export class MCPXClient {
       for (const toolCall of assistantResponse.tool_calls) {
         const toolResult = await this.executeToolCall(toolCall);
         
-        // Add tool result to conversation
+        // Add tool result to conversation with proper tool_call_id (required by OpenAI)
         this.messages.push({
           role: 'tool',
           name: toolCall.function.name,
           content: toolResult.function.content,
-          tool_results: [toolResult]
+          tool_call_id: toolResult.tool_call_id  // This is critical for OpenAI to track correctly
         });
       }
       
