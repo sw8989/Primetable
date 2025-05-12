@@ -17,6 +17,7 @@ export interface MCPXMessage {
   tool_calls?: MCPXToolCall[];
   tool_results?: MCPXToolResult[];
   tool_call_id?: string;  // Used for tool messages to link to the original tool call
+  function_name?: string;  // Used for tool messages to specify the function name (for OpenAI API)
   
   // Legacy format support (for compatibility with previous MCP versions)
   tool?: string;  // Legacy format for tool name 
@@ -328,12 +329,14 @@ export class MCPXClient {
         // According to OpenAI docs, tool response messages:
         // 1. Must have role = 'tool'
         // 2. Must have tool_call_id matching the original tool_call
-        // 3. Must have content with the result string
-        // 4. Must NOT have a name property (this breaks OpenAI's parsing)
+        // 3. Must have content with the result string (JSON-stringified result)
+        // 4. Must NOT have tool_calls property or it will confuse OpenAI
         const toolMessage: MCPXMessage = {
           role: 'tool',
           content: toolResult.function.content,
-          tool_call_id: toolResult.tool_call_id
+          tool_call_id: toolResult.tool_call_id,
+          // Include function_name as a separate property for the server-side API
+          function_name: toolResult.function.name
         };
         
         console.log('Adding tool response to conversation:', toolMessage);

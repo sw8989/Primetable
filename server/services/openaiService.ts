@@ -266,7 +266,8 @@ export async function processMcpChat(
     content: string; 
     tool_calls?: any; 
     tool_results?: any;
-    tool_call_id?: string; // Add this field for tool messages
+    tool_call_id?: string; // This field is essential for tool messages
+    function_name?: string; // This field helps with OpenAI API requirements
   }>,
   context: string,
   restaurant?: any
@@ -292,13 +293,39 @@ export async function processMcpChat(
         if (!toolCallId) {
           console.warn('Warning: tool message missing tool_call_id! This will cause OpenAI API errors.');
         }
-        return {
+        
+        // Debug log the tool message content
+        // Get the function name either from the dedicated property or fallback to tool name
+        const functionName = (msg as any).function_name || (msg as any).tool || null;
+        
+        console.debug('Tool message being processed:', { 
+          tool_call_id: toolCallId,
+          content_excerpt: typeof msg.content === 'string' ? msg.content.substring(0, 50) : 'non-string content',
+          has_function_name: !!functionName,
+          function_name: functionName
+        });
+        
+        // Check for critical issues that would cause OpenAI API errors
+        if (!functionName) {
+          console.warn('⚠️ Tool message missing function_name - this will likely cause OpenAI API errors');
+        }
+        
+        // Return properly formatted message for OpenAI API
+        const formattedToolMessage: any = {
           role: 'tool',
           tool_call_id: toolCallId || 'missing_id',
           content: typeof msg.content === 'string' 
             ? msg.content 
             : JSON.stringify(msg.content)
         };
+        
+        // Add name field (which OpenAI API expects for tool messages)
+        // This is the source of the "Missing required parameter" errors
+        if (functionName) {
+          formattedToolMessage.name = functionName;
+        }
+        
+        return formattedToolMessage;
       } else if (msg.role === 'user') {
         return {
           role: 'user',
