@@ -381,10 +381,21 @@ export class MCPXClient {
     } catch (error) {
       console.error('Error generating AI response:', error);
       
-      // Return a fallback message
+      // Create a more detailed error message
+      let errorDetail = '';
+      if (error instanceof Error) {
+        errorDetail = `Error: ${error.message}`;
+        if (error.stack) {
+          console.error('Error stack:', error.stack);
+        }
+      } else {
+        errorDetail = 'Unknown error occurred';
+      }
+      
+      // Return a message with detailed error information for debugging
       return {
         role: 'assistant',
-        content: 'I apologize, but I encountered an issue while processing your request. Please try again or ask a different question.'
+        content: `[MCPX Client Error] ${errorDetail}\n\nPlease try again with a different query or check the console for more details.`
       };
     }
   }
@@ -411,7 +422,15 @@ export class MCPXClient {
       });
       
       if (!response.ok) {
-        throw new Error(`Tool execution error: ${response.status}`);
+        // Get more detailed error information if available
+        try {
+          const errorData = await response.json();
+          const errorMessage = errorData.error || errorData.message || `HTTP error ${response.status}`;
+          throw new Error(`Tool execution error: ${errorMessage} (Status: ${response.status})`);
+        } catch (parseError) {
+          // If we can't parse the error JSON, use the status code
+          throw new Error(`Tool execution error: HTTP ${response.status}`);
+        }
       }
       
       const result = await response.json();
@@ -435,12 +454,25 @@ export class MCPXClient {
       // Prepare error message
       const errorMessage = error instanceof Error ? error.message : 'Unknown error';
       
+      // Enhanced debugging information
+      const debugInfo = {
+        toolName: toolCall.function.name,
+        toolArguments: toolCall.function.arguments,
+        errorDetails: errorMessage,
+        timestamp: new Date().toISOString()
+      };
+      console.log('Tool execution debug info:', debugInfo);
+      
       // Format error content based on the tool type for better UX
+      // Include detailed error information for debugging in development mode
+      const debuggingInfo = `Debug: Error calling ${toolCall.function.name} with args ${toolCall.function.arguments}: ${errorMessage}`;
+      
       let errorContent;
       if (toolCall.function.name === 'detect_booking_platform') {
         errorContent = JSON.stringify({
           success: false,
           error: errorMessage,
+          debugInfo: debuggingInfo,
           platform: 'unknown',
           platformName: 'Unknown Platform',
           confidence: 0
@@ -449,12 +481,14 @@ export class MCPXClient {
         errorContent = JSON.stringify({
           success: false,
           error: errorMessage,
+          debugInfo: debuggingInfo,
           restaurants: []
         });
       } else if (toolCall.function.name === 'check_availability') {
         errorContent = JSON.stringify({
           success: false,
           error: errorMessage,
+          debugInfo: debuggingInfo,
           available: false,
           alternatives: []
         });
@@ -462,7 +496,8 @@ export class MCPXClient {
         // Default error format
         errorContent = JSON.stringify({
           success: false,
-          error: errorMessage
+          error: errorMessage,
+          debugInfo: debuggingInfo
         });
       }
       

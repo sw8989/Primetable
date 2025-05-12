@@ -508,6 +508,31 @@ export async function processMcpChat(
       };
     }
     
+    // Extract detailed error information for debugging
+    let errorDetail = "";
+    if (openAIError.status) {
+      errorDetail += `Status: ${openAIError.status}. `;
+    }
+    if (openAIError.code) {
+      errorDetail += `Code: ${openAIError.code}. `;
+    }
+    if (openAIError.param) {
+      errorDetail += `Parameter: ${openAIError.param}. `;
+    }
+    if (openAIError.error && openAIError.error.message) {
+      errorDetail += `Message: ${openAIError.error.message}`;
+    } else if (openAIError.message) {
+      errorDetail += `Message: ${openAIError.message}`;
+    }
+    
+    // In development mode, expose error details in the response
+    if (process.env.NODE_ENV === 'development') {
+      return { 
+        role: "assistant", 
+        content: `Error in MCPX processing: ${errorDetail}`
+      };
+    }
+    
     return { 
       role: "assistant", 
       content: "I apologize, but I encountered an error while processing your request. Please try again later."
