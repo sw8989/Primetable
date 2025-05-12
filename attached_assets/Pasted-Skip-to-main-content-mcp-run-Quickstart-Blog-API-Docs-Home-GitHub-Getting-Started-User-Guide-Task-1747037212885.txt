@@ -1,0 +1,218 @@
+Skip to main content
+mcp.run
+Quickstart
+Blog
+API Docs
+Home
+GitHub
+
+
+Getting Started
+User Guide
+
+Tasks
+
+MCP Clients
+
+Integrating
+
+Intro
+Tutorials
+
+CrewAI + Python
+Gemini + Kotlin + Android
+LangChain4j + Java
+Mastra AI + TypeScript
+OpenAI + TypeScript
+Spring AI + Java
+OpenAI Agents using mcp.run tools via SSE
+Developing Servlets
+
+Security
+Get in touch!
+IntegratingTutorialsOpenAI + TypeScript
+Integrating OpenAI with mcp.run
+This tutorial guides you through connecting your OpenAI application with mcp.run's tool ecosystem. You'll learn how to create a chat interface that can interact with external tools and APIs through mcp.run.
+
+For a video walkthrough:
+
+
+Prerequisites
+Before starting, ensure you have the following:
+
+Node.js installed on your system
+An OpenAI Account with API access
+An OpenAI API Key
+A GitHub Account for mcp.run authentication
+Setting up mcp.run
+You'll need an mcp.run account and session ID. Here's how to get started:
+
+Run this command in your terminal:
+npx --yes -p @dylibso/mcpx@latest gen-session
+
+Your browser will open to complete authentication through GitHub
+After authenticating, return to your terminal and save the provided session key
+Security Note
+Keep your mcp.run session ID and OpenAI API key secure. Never commit these credentials to code repositories or expose them publicly.
+
+Required Tools
+This tutorial requires two mcp.run servlets:
+
+fetch - For making HTTP requests
+eval-js - For sandboxed JavaScript code evaluation
+Install both servlets by:
+
+Visiting each URL
+Clicking the Install button
+Verifying they appear in your install profile
+Project Setup
+Using Windows?
+You'll need a Linux-compatible shell like WSL or VS Code's integrated terminal. Alternatively, adapt the commands to your Windows environment.
+
+Let's create a new Node.js project:
+
+# Create and enter project directory
+mkdir mcpx-openai-chat
+cd mcpx-openai-chat
+
+# Initialize npm project
+npm init -y  # Remove -y flag for manual configuration
+
+# Install required dependencies
+npm install --save openai @dylibso/mcpx-openai pino pino-pretty
+
+Creating the Chat Interface
+Create a new file called index.js and add the following code:
+
+// Import required libraries
+import { McpxOpenAI } from "@dylibso/mcpx-openai";
+import OpenAI from "openai";
+import * as readline from "node:readline/promises";
+import { stdin as input, stdout as output } from "node:process";
+import pino from "pino";
+import pretty from "pino-pretty";
+
+// Configure I/O utilities
+const rl = readline.createInterface({ input, output });
+const logger = pino(pretty({ colorize: true }));
+
+// Load environment variables
+const OPENAI_API_KEY = String(process.env.OPENAI_API_KEY);
+const MCP_RUN_SESSION_ID = String(process.env.MCP_RUN_SESSION_ID);
+
+// Main program
+async function main() {
+  // Initialize OpenAI client with mcp.run wrapper
+  const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
+  const mcpx = await McpxOpenAI.create({
+    openai,
+    logger,
+    sessionId: MCP_RUN_SESSION_ID,
+  });
+
+  // Define system prompt for AI behavior
+  // Note: this can be whatever you want, but it's recommended to give the LLM
+  // as much context as you can here while remaining generic for your use case.
+  const messages = [{
+    role: "system",
+    content: `
+You are a helpful AI assistant with access to various external tools and APIs. Your goal is to complete tasks thoroughly and autonomously by making full use of these tools. Here are your core operating principles:
+
+1. Take initiative - Don't wait for user permission to use tools. If a tool would help complete the task, use it immediately.
+2. Chain multiple tools together - Many tasks require multiple tool calls in sequence. Plan out and execute the full chain of calls needed to achieve the goal.
+3. Handle errors gracefully - If a tool call fails, try alternative approaches or tools rather than asking the user what to do.
+4. Make reasonable assumptions - When tool calls require parameters, use your best judgment to provide appropriate values rather than asking the user.
+5. Show your work - After completing tool calls, explain what you did and show relevant results, but focus on the final outcome the user wanted.
+6. Be thorough - Use tools repeatedly as needed until you're confident you've fully completed the task. Don't stop at partial solutions.
+
+Your responses should focus on results rather than asking questions. Only ask the user for clarification if the task itself is unclear or impossible with the tools available.
+`,
+  }];
+
+  console.log('Chat started. Type "exit" to quit.\n');
+
+  // Main chat loop
+  while (true) {
+    const input = await rl.question("You: ");
+
+    if (input.toLowerCase() === "exit") {
+      console.log("Goodbye!");
+      rl.close();
+      return;
+    }
+
+    messages.push({ role: "user", content: input });
+
+    // Send chat completion request
+    // Note: this provides the same interface as openai.chat.completions.create()
+    let response = await mcpx.chatCompletionCreate({
+      model: "gpt-4o", // Select your preferred model
+      temperature: 0,
+      messages,
+    });
+
+    let responseMessage = response.choices[0]?.message;
+    console.log("\nAssistant:", responseMessage.content);
+  }
+}
+
+// Execute main program
+await main();
+process.exit(0);
+
+
+For the remainder of the tutorial to work as document, copy and paste this into the file index.js in your project.
+
+Running the Application
+To run the chat interface:
+
+Set your environment variables:
+
+export OPENAI_API_KEY="your-openai-key-here"
+export MCP_RUN_SESSION_ID="your-mcp-session-here"
+
+Start the application:
+
+node --no-warnings=ExperimentalWarning index.js
+
+Testing the Integration
+Try this example prompt to test the tool chaining capability:
+
+I want to know what would happen if i put the string "Hello, mcp.run!" into this hash function https://gist.githubusercontent.com/MohamedTaha98/ccdf734f13299efb73ff0b12f7ce429f/raw/ab9593d5195a1643388cfc99d03a4fd96a094a5c/djb2%2520hash%2520function.c
+
+
+The assistant will automatically:
+
+Use fetch to download the C code
+Translate the C code to JavaScript
+Execute the translated code using eval-js
+Return the hash value: -2106085175
+You should see output similar to this:
+
+Assistant: The result of hashing the string "Hello, mcp.run!" using the provided djb2 hash function is `-2106085175`.
+
+
+This demonstrates how the assistant can chain multiple tools together without explicit instructions, showcasing the power of the integration.
+
+Support
+If you get stuck and need some help, please reach out! Visit our support page to learn how best to get in touch.
+
+Previous
+Mastra AI + TypeScript
+Next
+Spring AI + Java
+Prerequisites
+Setting up mcp.run
+Required Tools
+Project Setup
+Creating the Chat Interface
+Running the Application
+Testing the Integration
+Support
+Docs
+Getting Started
+Community
+Discord
+𝕏
+GitHub
+Copyright © 2025 Dylibso, Inc.

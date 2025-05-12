@@ -16,6 +16,10 @@ export interface MCPXMessage {
   name?: string;  // Used for tool messages
   tool_calls?: MCPXToolCall[];
   tool_results?: MCPXToolResult[];
+  
+  // Legacy format support (for compatibility with previous MCP versions)
+  tool?: string;  // Legacy format for tool name 
+  parameters?: Record<string, any>;  // Legacy format for tool parameters
 }
 
 // Tool call format for MCPX
@@ -457,6 +461,36 @@ export class MCPXClient {
    */
   getMessages(): MCPXMessage[] {
     return [...this.messages];
+  }
+  
+  /**
+   * Helper method to normalize tool calls in messages
+   * Handles both MCPX and legacy MCP formats for compatibility
+   */
+  normalizeToolCalls(message: MCPXMessage): MCPXMessage {
+    // If it's already in MCPX format (has tool_calls), return as is
+    if (message.tool_calls && Array.isArray(message.tool_calls) && message.tool_calls.length > 0) {
+      return message;
+    }
+    
+    // If it's in legacy format (has tool property), convert to MCPX format
+    if (message.tool && typeof message.tool === 'string') {
+      const normalizedMessage: MCPXMessage = {
+        ...message,
+        tool_calls: [{
+          id: `legacy-tool-${Date.now()}`,
+          type: 'function',
+          function: {
+            name: message.tool,
+            arguments: message.parameters ? JSON.stringify(message.parameters) : '{}'
+          }
+        }]
+      };
+      return normalizedMessage;
+    }
+    
+    // If no tool calls at all, return original
+    return message;
   }
   
   /**
