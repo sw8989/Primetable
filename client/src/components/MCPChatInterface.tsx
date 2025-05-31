@@ -34,7 +34,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
   useEffect(() => {
     if (restaurants.length > 0 && !mcpAgent) {
       console.log('Initializing AI assistant with', restaurants.length, 'restaurants');
-      const agent = new MCPAgent(restaurants);
+      const agent = new MCPXClient({ restaurants, simulationMode: false });
       setMcpAgent(agent);
       setMessages(agent.getMessages());
     }
@@ -55,7 +55,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
     
     try {
       // Process the message using the AI assistant
-      const updatedMessages = await mcpAgent.processUserMessage(inputValue);
+      const updatedMessages = await mcpAgent.processMessage(inputValue);
       setMessages(updatedMessages);
     } catch (error) {
       console.error('Error processing message with AI assistant:', error);
@@ -73,20 +73,27 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
     }
   };
   
-  const extractRestaurants = (msg: MCPMessage): Restaurant[] => {
+  const extractRestaurants = (msg: MCPXMessage): Restaurant[] => {
     if (msg.role !== 'tool' || !msg.tool_results) return [];
     
     const restaurants: Restaurant[] = [];
     
     for (const result of msg.tool_results) {
-      // Check for restaurants in search results
-      if (result.result.restaurants && Array.isArray(result.result.restaurants)) {
-        restaurants.push(...(result.result.restaurants as Restaurant[]));
-      }
-      
-      // Check for single restaurant in result
-      if (result.result.restaurant && typeof result.result.restaurant === 'object') {
-        restaurants.push(result.result.restaurant as Restaurant);
+      try {
+        // Parse the tool result content
+        const resultData = JSON.parse(result.function.content);
+        
+        // Check for restaurants in search results
+        if (resultData.restaurants && Array.isArray(resultData.restaurants)) {
+          restaurants.push(...(resultData.restaurants as Restaurant[]));
+        }
+        
+        // Check for single restaurant in result
+        if (resultData.restaurant && typeof resultData.restaurant === 'object') {
+          restaurants.push(resultData.restaurant as Restaurant);
+        }
+      } catch (error) {
+        console.error('Error parsing tool result:', error);
       }
     }
     
@@ -97,7 +104,7 @@ const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
     openBookingModal(restaurant);
   };
   
-  const renderMessageContent = (message: MCPMessage) => {
+  const renderMessageContent = (message: MCPXMessage) => {
     const restaurants = message.role === 'tool' ? extractRestaurants(message) : [];
     
     return (

@@ -21,7 +21,7 @@ import { Badge } from "@/components/ui/badge";
 import { useQuery, useMutation } from "@tanstack/react-query";
 
 // Import MCP types from the existing protocol implementation
-import type { MCPMessage, ToolCall, ToolResult } from "@/lib/mcp/agentProtocol";
+import type { MCPXMessage, MCPXToolCall, MCPXToolResult } from "@/lib/mcp/MCPXClient";
 
 interface Restaurant {
   id: number;
