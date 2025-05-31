@@ -124,7 +124,7 @@ export class MCPXClient {
       
       if (data.tools && Array.isArray(data.tools)) {
         // Replace all tools with server-provided tools
-        this.tools = data.tools.filter(tool => 
+        this.tools = data.tools.filter((tool: any) => 
           tool.type === 'function' && 
           tool.function && 
           tool.function.name && 

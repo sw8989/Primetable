@@ -9,8 +9,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { MCPAgent } from '@/lib/mcp/MCPAgent';
-import { MCPMessage } from '@/lib/mcp/agentProtocol';
+import { MCPXClient, MCPXMessage } from '@/lib/mcp/MCPXClient';
 import type { Restaurant } from '@shared/schema';
 import { useBooking } from '@/hooks/useBooking';
 import RestaurantCard from './RestaurantCard';
@@ -24,10 +23,10 @@ interface MCPChatInterfaceProps {
  * This provides a chat interface for users to book restaurant reservations
  */
 const MCPChatInterface: React.FC<MCPChatInterfaceProps> = ({ restaurants }) => {
-  const [messages, setMessages] = useState<MCPMessage[]>([]);
+  const [messages, setMessages] = useState<MCPXMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
-  const [mcpAgent, setMcpAgent] = useState<MCPAgent | null>(null);
+  const [mcpAgent, setMcpAgent] = useState<MCPXClient | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const { openBookingModal } = useBooking();
   

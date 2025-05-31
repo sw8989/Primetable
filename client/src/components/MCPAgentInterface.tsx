@@ -39,8 +39,8 @@ const getMessageStyle = (role: string) => {
  * MCPAgentInterface - provides a chat interface to an MCP-based agent
  */
 const MCPAgentInterface = ({ restaurants }: { restaurants: Restaurant[] }) => {
-  const [agent, setAgent] = useState<MCPAgent | null>(null);
-  const [messages, setMessages] = useState<MCPMessage[]>([]);
+  const [agent, setAgent] = useState<MCPXClient | null>(null);
+  const [messages, setMessages] = useState<MCPXMessage[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isProcessing, setIsProcessing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -49,7 +49,7 @@ const MCPAgentInterface = ({ restaurants }: { restaurants: Restaurant[] }) => {
   // Initialize the agent when restaurants are available
   useEffect(() => {
     if (restaurants.length > 0 && !agent) {
-      const mcpAgent = new MCPAgent(restaurants);
+      const mcpAgent = new MCPXClient({ restaurants, simulationMode: false });
       setAgent(mcpAgent);
       setMessages(mcpAgent.getMessages());
     }
@@ -78,7 +78,7 @@ const MCPAgentInterface = ({ restaurants }: { restaurants: Restaurant[] }) => {
     
     try {
       // Process the message using the agent
-      const updatedMessages = await agent.processUserMessage(message);
+      const updatedMessages = await agent.processMessage(message);
       setMessages(updatedMessages);
     } catch (error) {
       console.error('Error processing message:', error);
