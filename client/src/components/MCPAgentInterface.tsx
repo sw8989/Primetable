@@ -17,8 +17,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { MCPAgent } from '@/lib/mcp/MCPAgent';
-import { MCPMessage } from '@/lib/mcp/agentProtocol';
+import { MCPXClient, MCPXMessage } from '@/lib/mcp/MCPXClient';
 import type { Restaurant } from '@shared/schema';
 import { useBooking } from '@/hooks/useBooking';
 

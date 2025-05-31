@@ -101,200 +101,41 @@ export class MCPXClient {
    * Register available tools for the client
    */
   private async registerTools() {
-    // Register standard tools
-    this.registerStandardTools();
-    
-    // Try to register external tools (Smithery, etc.)
+    // Fetch tools from the server - this is the single source of truth
     try {
       await this.registerExternalTools();
     } catch (error) {
-      console.error('Failed to register external tools:', error);
+      console.error('Failed to register tools:', error);
     }
   }
   
   /**
-   * Register standard built-in tools
-   */
-  private registerStandardTools() {
-    // Restaurant search tool
-    this.tools.push({
-      type: 'function',
-      function: {
-        name: 'search_restaurants',
-        description: 'Search for restaurants based on criteria like cuisine, location, or booking difficulty',
-        parameters: {
-          type: 'object',
-          properties: {
-            cuisine: {
-              type: 'string',
-              description: 'Cuisine type (e.g., French, Italian, Japanese)',
-            },
-            location: {
-              type: 'string',
-              description: 'Location in London (e.g., Mayfair, Soho, Shoreditch)',
-            },
-            difficulty: {
-              type: 'string',
-              description: 'Booking difficulty level (easy, medium, hard)',
-            },
-            query: {
-              type: 'string',
-              description: 'Free text search query',
-            }
-          },
-          required: []
-        }
-      }
-    });
-    
-    // Check availability tool
-    this.tools.push({
-      type: 'function',
-      function: {
-        name: 'check_availability',
-        description: 'Check if a restaurant has available reservations for a given date and time',
-        parameters: {
-          type: 'object',
-          properties: {
-            restaurant_id: {
-              type: 'number',
-              description: 'ID of the restaurant to check',
-            },
-            date: {
-              type: 'string',
-              description: 'Date in YYYY-MM-DD format',
-            },
-            time: {
-              type: 'string',
-              description: 'Time in HH:MM format (24-hour)',
-            },
-            party_size: {
-              type: 'number',
-              description: 'Number of people in the party',
-            }
-          },
-          required: ['restaurant_id', 'date', 'time', 'party_size']
-        }
-      }
-    });
-    
-    // Book restaurant tool
-    this.tools.push({
-      type: 'function',
-      function: {
-        name: 'book_restaurant',
-        description: 'Book a reservation at a restaurant',
-        parameters: {
-          type: 'object',
-          properties: {
-            restaurant_id: {
-              type: 'number',
-              description: 'ID of the restaurant to book',
-            },
-            date: {
-              type: 'string',
-              description: 'Date in YYYY-MM-DD format',
-            },
-            time: {
-              type: 'string',
-              description: 'Time in HH:MM format (24-hour)',
-            },
-            party_size: {
-              type: 'number',
-              description: 'Number of people in the party',
-            },
-            name: {
-              type: 'string',
-              description: 'Name for the reservation',
-            },
-            email: {
-              type: 'string',
-              description: 'Contact email',
-            },
-            phone: {
-              type: 'string',
-              description: 'Contact phone number',
-            },
-            special_requests: {
-              type: 'string',
-              description: 'Any special requests or notes',
-            }
-          },
-          required: ['restaurant_id', 'date', 'time', 'party_size', 'name']
-        }
-      }
-    });
-    
-    // Platform detection tool
-    this.tools.push({
-      type: 'function',
-      function: {
-        name: 'detect_booking_platform',
-        description: 'Detect which booking platform a restaurant uses based on its website URL',
-        parameters: {
-          type: 'object',
-          properties: {
-            url: {
-              type: 'string',
-              description: 'The restaurant website URL to analyze',
-            }
-          },
-          required: ['url']
-        }
-      }
-    });
-    
-    // Web search tool
-    this.tools.push({
-      type: 'function',
-      function: {
-        name: 'web_search',
-        description: 'Search the web for information about restaurants',
-        parameters: {
-          type: 'object',
-          properties: {
-            query: {
-              type: 'string',
-              description: 'Search query for finding restaurant information',
-            }
-          },
-          required: ['query']
-        }
-      }
-    });
-  }
-  
-  /**
-   * Register external tools from services like Smithery
+   * Register tools from the server API
    */
   private async registerExternalTools() {
     try {
-      // Fetch external tools from the server
+      // Fetch all tools from the server - no client-side tool definitions
       const response = await fetch('/api/mcp/tools');
       if (!response.ok) {
-        throw new Error(`Failed to fetch external tools: ${response.status}`);
+        throw new Error(`Failed to fetch tools: ${response.status}`);
       }
       
       const data = await response.json();
       
       if (data.tools && Array.isArray(data.tools)) {
-        // Add each external tool to our tools array
-        for (const tool of data.tools) {
-          // Only add if it's a valid MCPX tool
-          if (
-            tool.type === 'function' && 
-            tool.function && 
-            tool.function.name && 
-            tool.function.description
-          ) {
-            this.tools.push(tool);
-          }
-        }
+        // Replace all tools with server-provided tools
+        this.tools = data.tools.filter(tool => 
+          tool.type === 'function' && 
+          tool.function && 
+          tool.function.name && 
+          tool.function.description
+        );
         
-        console.log(`Registered ${data.tools.length} external tools`);
+        console.log(`Registered ${this.tools.length} external tools`);
       }
     } catch (error) {
-      console.error('Error registering external tools:', error);
+      console.error('Error registering tools:', error);
+      this.tools = []; // Fallback to no tools if server unavailable
     }
   }
   
