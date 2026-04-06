@@ -1,6 +1,38 @@
 import OpenAI from "openai";
 import { getBookingTools } from "./ai/bookingTools";
 
+const LOG_PREVIEW_CHARS = 160;
+
+export function summarizeTextForLog(value: string, maxChars = LOG_PREVIEW_CHARS): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+
+  return `${value.slice(0, maxChars)}... [truncated ${value.length - maxChars} chars]`;
+}
+
+export function summarizeMcpMessagesForLog(
+  messages: Array<{
+    role: string;
+    content?: string;
+    tool_calls?: any;
+    tool_call_id?: string;
+    function_name?: string;
+    name?: string;
+  }>,
+): Array<Record<string, unknown>> {
+  return messages.map((message) => ({
+    role: message.role,
+    tool_call_id: message.tool_call_id,
+    name: message.function_name || message.name,
+    tool_calls_count: Array.isArray(message.tool_calls) ? message.tool_calls.length : 0,
+    content_preview:
+      typeof message.content === "string"
+        ? summarizeTextForLog(message.content)
+        : undefined,
+  }));
+}
+
 // Check if the API key is available in the environment variables
 if (!process.env.OPENAI_API_KEY) {
   console.warn(
@@ -368,7 +400,7 @@ export async function processMcpChat(
           name: toolMessage.name,
           content_preview:
             typeof toolMessage.content === "string"
-              ? toolMessage.content.substring(0, 30) + "..."
+              ? summarizeTextForLog(toolMessage.content, 80)
               : "non-string content",
         });
 
@@ -380,27 +412,7 @@ export async function processMcpChat(
     // which are crucial for diagnosing our "missing_required_parameter" error
     console.log(
       "OpenAI messages prepared for API call:",
-      openaiMessages.map((m) => {
-        const base = {
-          role: m.role,
-          has_content: !!m.content,
-        };
-
-        if (m.role === "tool") {
-          return {
-            ...base,
-            tool_call_id: m.tool_call_id,
-            name: m.name, // This should now be properly set for tool messages
-          };
-        } else if (m.role === "assistant" && m.tool_calls) {
-          return {
-            ...base,
-            tool_calls_count: m.tool_calls.length,
-          };
-        }
-
-        return base;
-      }),
+      summarizeMcpMessagesForLog(openaiMessages),
     );
 
     // Import booking tools

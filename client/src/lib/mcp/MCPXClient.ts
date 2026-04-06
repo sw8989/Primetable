@@ -9,6 +9,130 @@
 
 import type { Restaurant } from '@shared/schema';
 
+const MAX_CHAT_MESSAGE_CHARS = 2_000;
+const MAX_TOOL_RESULT_CHARS = 1_500;
+const MAX_TOOL_RESULT_ITEMS = 3;
+const MAX_TOOL_RESULT_KEYS = 12;
+const MAX_COMPACT_DEPTH = 3;
+
+const LARGE_TEXT_KEYS = new Set([
+  'body',
+  'content',
+  'css',
+  'debugInfo',
+  'description',
+  'error',
+  'html',
+  'innerHtml',
+  'message',
+  'rawHtml',
+  'rawText',
+  'response',
+  'stack',
+  'text',
+]);
+
+type JsonLike = null | boolean | number | string | JsonLike[] | { [key: string]: JsonLike };
+
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+export function truncateText(value: string, maxChars: number): string {
+  if (value.length <= maxChars) {
+    return value;
+  }
+
+  const truncatedChars = value.length - maxChars;
+  return `${value.slice(0, maxChars)}... [truncated ${truncatedChars} chars]`;
+}
+
+function compactArray(value: unknown[], depth: number): JsonLike[] {
+  return value.slice(0, MAX_TOOL_RESULT_ITEMS).map((item) => compactToolResultPayload(item, depth + 1));
+}
+
+export function compactToolResultPayload(value: unknown, depth = 0): JsonLike {
+  if (value === null || typeof value === 'boolean' || typeof value === 'number') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return truncateText(value, MAX_TOOL_RESULT_CHARS);
+  }
+
+  if (depth >= MAX_COMPACT_DEPTH) {
+    return '[truncated nested payload]';
+  }
+
+  if (Array.isArray(value)) {
+    return compactArray(value, depth);
+  }
+
+  if (!isPlainObject(value)) {
+    return truncateText(String(value), MAX_TOOL_RESULT_CHARS);
+  }
+
+  const result: Record<string, JsonLike> = {};
+  const entries = Object.entries(value);
+
+  for (const [index, [key, entryValue]] of entries.entries()) {
+    if (index >= MAX_TOOL_RESULT_KEYS) {
+      result._truncated = true;
+      result._omittedKeys = entries.length - MAX_TOOL_RESULT_KEYS;
+      break;
+    }
+
+    const nextValue =
+      typeof entryValue === 'string' && LARGE_TEXT_KEYS.has(key)
+        ? truncateText(entryValue, MAX_TOOL_RESULT_CHARS)
+        : compactToolResultPayload(entryValue, depth + 1);
+
+    result[key] = nextValue;
+
+    if (Array.isArray(entryValue) && entryValue.length > MAX_TOOL_RESULT_ITEMS) {
+      result[`${key}Count`] = entryValue.length;
+      result[`${key}Truncated`] = true;
+    }
+  }
+
+  return result;
+}
+
+export function compactMessagesForChat(messages: MCPXMessage[]): MCPXMessage[] {
+  return messages.map((message) => {
+    const compactMessage: MCPXMessage = {
+      ...message,
+      content: truncateText(message.content || '', MAX_CHAT_MESSAGE_CHARS),
+    };
+
+    if (message.tool_calls) {
+      compactMessage.tool_calls = message.tool_calls.map((toolCall) => ({
+        ...toolCall,
+        function: {
+          ...toolCall.function,
+          arguments: truncateText(toolCall.function.arguments || '{}', MAX_CHAT_MESSAGE_CHARS),
+        },
+      }));
+    }
+
+    if (message.tool_results) {
+      compactMessage.tool_results = message.tool_results.map((toolResult) => ({
+        ...toolResult,
+        function: {
+          ...toolResult.function,
+          content: truncateText(toolResult.function.content || '', MAX_CHAT_MESSAGE_CHARS),
+        },
+      }));
+    }
+
+    return compactMessage;
+  });
+}
+
+function summarizeForDebug(value: unknown): JsonLike {
+  return compactToolResultPayload(value);
+}
+
 // Standard MCP Message format
 export interface MCPXMessage {
   role: 'user' | 'assistant' | 'tool' | 'system';
@@ -201,7 +325,7 @@ export class MCPXClient {
     try {
       // Prepare request payload
       const payload = {
-        messages: this.messages,
+        messages: compactMessagesForChat(this.messages),
         tools: this.tools.length > 0 ? this.tools : undefined
       };
       
@@ -278,7 +402,8 @@ export class MCPXClient {
       }
       
       const result = await response.json();
-      console.log(`Tool execution result for ${toolCall.function.name}:`, result);
+      const compactResult = compactToolResultPayload(result);
+      console.log(`Tool execution result for ${toolCall.function.name}:`, summarizeForDebug(compactResult));
       
       // Format as MCP tool result - ensure proper formatting for OpenAI
       const toolResult: MCPXToolResult = {
@@ -286,11 +411,11 @@ export class MCPXClient {
         type: 'function',
         function: {
           name: toolCall.function.name,
-          content: JSON.stringify(result)
+          content: JSON.stringify(compactResult)
         }
       };
       
-      console.log('Formatted tool result for MCP:', toolResult);
+      console.log('Formatted tool result for MCP:', summarizeForDebug(toolResult));
       return toolResult;
     } catch (error) {
       console.error(`Error executing tool ${toolCall.function.name}:`, error);
@@ -301,7 +426,7 @@ export class MCPXClient {
       // Enhanced debugging information
       const debugInfo = {
         toolName: toolCall.function.name,
-        toolArguments: toolCall.function.arguments,
+        toolArguments: truncateText(toolCall.function.arguments, MAX_CHAT_MESSAGE_CHARS),
         errorDetails: errorMessage,
         timestamp: new Date().toISOString()
       };
@@ -351,7 +476,7 @@ export class MCPXClient {
         type: 'function',
         function: {
           name: toolCall.function.name,
-          content: errorContent
+          content: JSON.stringify(compactToolResultPayload(JSON.parse(errorContent)))
         }
       };
     }

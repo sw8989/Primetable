@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
-import { 
+import {
   Card,
   CardContent,
-  CardDescription,
   CardFooter,
-  CardHeader,
-  CardTitle 
 } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Check, X, AlertCircle, Clock } from 'lucide-react';
 import { useBooking } from '@/hooks/useBooking';
-import { Booking } from '@shared/schema';
+import type { Booking, Restaurant } from '@shared/schema';
+import { getBookingsByUser, cancelBooking, confirmBooking } from '@/lib/api';
+
+type BookingWithRestaurant = Booking & { restaurant: Restaurant | null };
 
 const BookingStatusBadge = ({ status }: { status: string }) => {
   switch (status) {
@@ -43,121 +43,52 @@ const AgentStatusBadge = ({ status }: { status: string }) => {
   }
 };
 
+// Demo user id until auth is implemented
+const DEMO_USER_ID = 1;
+
 const MyBookings = () => {
-  const [bookings, setBookings] = useState<Booking[]>([]);
+  const [bookings, setBookings] = useState<BookingWithRestaurant[]>([]);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  
-  // In a real app, we would fetch bookings from the API
+
   useEffect(() => {
-    // Simulate API fetch delay
-    const timer = setTimeout(() => {
-      // Demo data
-      setBookings([
-        {
-          id: 1,
-          userId: 1,
-          restaurantId: 1,
-          date: new Date(Date.now() + 10 * 24 * 60 * 60 * 1000), // 10 days from now
-          time: "7:30 PM",
-          partySize: 2,
-          status: "pending",
-          agentStatus: "active",
-          confirmed: false,
-          priorityBooking: true,
-          acceptSimilarTimes: true,
-          autoConfirm: true,
-          createdAt: new Date(),
-          agentLog: null,
-          platformBookingId: null,
-          restaurant: {
-            id: 1,
-            name: "Chiltern Firehouse",
-            description: "Trendy hotel restaurant by acclaimed chef Nuno Mendes.",
-            cuisine: "Modern European",
-            location: "Marylebone",
-            imageUrl: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
-            bookingDifficulty: "hard",
-            bookingInfo: "Opens reservations 90 days in advance at midnight",
-            bookingPlatform: "OpenTable",
-            bookingNotes: "Some tables reserved for hotel guests",
-            platformId: "chiltern123",
-          }
-        },
-        {
-          id: 2,
-          userId: 1,
-          restaurantId: 2,
-          date: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000), // 3 days from now
-          time: "8:00 PM",
-          partySize: 4,
-          status: "confirmed",
-          agentStatus: "success",
-          confirmed: true,
-          priorityBooking: true,
-          acceptSimilarTimes: true,
-          autoConfirm: true,
-          createdAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000), // Created 7 days ago
-          agentLog: null,
-          platformBookingId: "res123456",
-          restaurant: {
-            id: 2,
-            name: "The Clove Club",
-            description: "2 Michelin Star restaurant serving innovative British cuisine.",
-            cuisine: "British",
-            location: "Shoreditch",
-            imageUrl: "https://images.unsplash.com/photo-1559304822-9eb2813c9844?ixlib=rb-1.2.1&auto=format&fit=crop&w=800&h=400",
-            bookingDifficulty: "hard",
-            bookingInfo: "Reservations open 2 months in advance",
-            bookingPlatform: "Tock",
-            bookingNotes: "Required prepayment for tasting menu",
-            platformId: "cloveclub456",
-          }
-        }
-      ]);
-      setLoading(false);
-    }, 1000);
-    
-    return () => clearTimeout(timer);
+    getBookingsByUser(DEMO_USER_ID)
+      .then((data) => setBookings(data))
+      .catch((err) => {
+        console.error('Error loading bookings:', err);
+        toast({ title: 'Failed to load bookings', variant: 'destructive' });
+      })
+      .finally(() => setLoading(false));
   }, []);
-  
-  const handleConfirm = (id: number) => {
-    toast({
-      title: "Booking Confirmed",
-      description: "Your reservation has been confirmed.",
-    });
-    
-    // Update the booking status in state
-    setBookings(prevBookings => 
-      prevBookings.map(booking => 
-        booking.id === id 
-          ? { ...booking, status: "confirmed", confirmed: true } 
-          : booking
-      )
-    );
+
+  const handleConfirm = async (id: number) => {
+    try {
+      await confirmBooking(id);
+      setBookings((prev) =>
+        prev.map((b) => b.id === id ? { ...b, status: 'confirmed', confirmed: true } : b)
+      );
+      toast({ title: 'Booking Confirmed', description: 'Your reservation has been confirmed.' });
+    } catch {
+      toast({ title: 'Failed to confirm booking', variant: 'destructive' });
+    }
   };
-  
-  const handleCancel = (id: number) => {
-    toast({
-      title: "Booking Cancelled",
-      description: "Your reservation has been cancelled.",
-      variant: "destructive"
-    });
-    
-    // Update the booking status in state
-    setBookings(prevBookings => 
-      prevBookings.map(booking => 
-        booking.id === id 
-          ? { ...booking, status: "cancelled", agentStatus: "failed" } 
-          : booking
-      )
-    );
+
+  const handleCancel = async (id: number) => {
+    try {
+      await cancelBooking(id);
+      setBookings((prev) =>
+        prev.map((b) => b.id === id ? { ...b, status: 'cancelled', agentStatus: 'failed' } : b)
+      );
+      toast({ title: 'Booking Cancelled', description: 'Your reservation has been cancelled.', variant: 'destructive' });
+    } catch {
+      toast({ title: 'Failed to cancel booking', variant: 'destructive' });
+    }
   };
-  
+
   return (
     <div className="container mx-auto py-8 px-4">
       <h1 className="font-display text-3xl font-bold mb-6">My Bookings</h1>
-      
+
       {loading ? (
         <div className="flex justify-center py-12">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-primary"></div>
@@ -168,8 +99,8 @@ const MyBookings = () => {
             bookings.map(booking => (
               <Card key={booking.id} className="overflow-hidden">
                 <div className="h-32 relative">
-                  <img 
-                    src={booking.restaurant?.imageUrl} 
+                  <img
+                    src={booking.restaurant?.imageUrl ?? undefined}
                     alt={booking.restaurant?.name}
                     className="w-full h-full object-cover"
                   />
@@ -181,7 +112,7 @@ const MyBookings = () => {
                     <BookingStatusBadge status={booking.status} />
                   </div>
                 </div>
-                
+
                 <CardContent className="pt-4">
                   <div className="grid grid-cols-2 gap-4 mb-4">
                     <div>
@@ -198,12 +129,10 @@ const MyBookings = () => {
                     </div>
                     <div>
                       <p className="text-sm text-gray-500">Booking Ref</p>
-                      <p className="font-medium">
-                        {booking.platformBookingId || 'Pending'}
-                      </p>
+                      <p className="font-medium">{booking.platformBookingId ?? 'Pending'}</p>
                     </div>
                   </div>
-                  
+
                   <div className="flex items-center space-x-2 mt-2">
                     <AgentStatusBadge status={booking.agentStatus} />
                     {booking.agentStatus === 'active' && (
@@ -214,7 +143,7 @@ const MyBookings = () => {
                     )}
                   </div>
                 </CardContent>
-                
+
                 <CardFooter className="border-t pt-4 bg-gray-50">
                   {booking.status === 'pending' && (
                     <div className="w-full flex items-center justify-between">
@@ -224,28 +153,8 @@ const MyBookings = () => {
                           {booking.restaurant?.bookingPlatform} confirmation pending
                         </span>
                       </div>
-                      <div className="flex space-x-2">
-                        <Button 
-                          size="sm" 
-                          variant="outline"
-                          className="border-error text-error hover:bg-error hover:text-white"
-                          onClick={() => handleCancel(booking.id)}
-                        >
-                          <X className="h-4 w-4 mr-1" />
-                          Cancel
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                  
-                  {booking.status === 'confirmed' && (
-                    <div className="w-full flex items-center justify-between">
-                      <div className="flex items-center">
-                        <Check className="h-5 w-5 text-success mr-2" />
-                        <span className="text-sm">Confirmed via {booking.restaurant?.bookingPlatform}</span>
-                      </div>
-                      <Button 
-                        size="sm" 
+                      <Button
+                        size="sm"
                         variant="outline"
                         className="border-error text-error hover:bg-error hover:text-white"
                         onClick={() => handleCancel(booking.id)}
@@ -255,7 +164,25 @@ const MyBookings = () => {
                       </Button>
                     </div>
                   )}
-                  
+
+                  {booking.status === 'confirmed' && (
+                    <div className="w-full flex items-center justify-between">
+                      <div className="flex items-center">
+                        <Check className="h-5 w-5 text-success mr-2" />
+                        <span className="text-sm">Confirmed via {booking.restaurant?.bookingPlatform}</span>
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-error text-error hover:bg-error hover:text-white"
+                        onClick={() => handleCancel(booking.id)}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
+                  )}
+
                   {booking.status === 'cancelled' && (
                     <div className="w-full flex items-center">
                       <X className="h-5 w-5 text-error mr-2" />

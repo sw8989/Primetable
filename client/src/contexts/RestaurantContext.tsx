@@ -44,6 +44,16 @@ export const RestaurantProvider = ({ children }: { children: ReactNode }) => {
   const { data: filteredRestaurants = [], isLoading: isSearchLoading } = useQuery({
     queryKey: ['/api/restaurants/search', searchTerm],
     enabled: Boolean(searchTerm), // Only run when there is a search term
+    queryFn: async () => {
+      const response = await fetch(
+        `/api/restaurants/search?query=${encodeURIComponent(searchTerm)}`,
+        { credentials: "include" }
+      );
+      if (!response.ok) {
+        throw new Error(`Failed to search restaurants: ${response.status}`);
+      }
+      return response.json();
+    },
   });
   
   const { data: filterResults = [], isLoading: isFilterLoading } = useQuery({

@@ -18,7 +18,7 @@ export async function getRestaurantById(id: number) {
 }
 
 export async function searchRestaurants(query: string) {
-  const response = await fetch(`/api/restaurants/search?q=${encodeURIComponent(query)}`);
+  const response = await fetch(`/api/restaurants/search?query=${encodeURIComponent(query)}`);
   if (!response.ok) {
     throw new Error('Failed to search restaurants');
   }
@@ -77,6 +77,6 @@ export async function getFavoritesByUser(userId: number) {
 }
 
 export async function removeFavorite(id: number) {
-  await apiRequest('DELETE', `/api/favorites/${id}`, null);
+  await apiRequest('DELETE', `/api/favorites/${id}`);
   return true;
 }

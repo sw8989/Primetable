@@ -252,11 +252,16 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
                       
                       // For restaurant search results
                       if (parsedContent.restaurants) {
+                        const restaurantCount =
+                          typeof parsedContent.restaurantsCount === 'number'
+                            ? parsedContent.restaurantsCount
+                            : parsedContent.restaurants.length;
+
                         return (
                           <div>
                             <div className="text-sm font-medium mb-1">
-                              {parsedContent.restaurants.length > 0 
-                                ? `Found ${parsedContent.restaurants.length} restaurant(s)` 
+                              {restaurantCount > 0 
+                                ? `Found ${restaurantCount} restaurant(s)` 
                                 : 'No restaurants found'}
                             </div>
                             
@@ -267,9 +272,9 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
                               </div>
                             ))}
                             
-                            {parsedContent.restaurants.length > 3 && (
+                            {restaurantCount > 3 && (
                               <div className="text-xs italic">
-                                ...and {parsedContent.restaurants.length - 3} more restaurants
+                                ...and {restaurantCount - 3} more restaurants
                               </div>
                             )}
                           </div>
@@ -291,6 +296,12 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
                                 {parsedContent.alternatives.map((alt: any, idx: number) => (
                                   <div key={idx} className="text-xs mt-1">{alt.date} at {alt.time}</div>
                                 ))}
+                                {typeof parsedContent.alternativesCount === 'number' &&
+                                  parsedContent.alternativesCount > parsedContent.alternatives.length && (
+                                    <div className="text-xs italic mt-1">
+                                      ...and {parsedContent.alternativesCount - parsedContent.alternatives.length} more options
+                                    </div>
+                                  )}
                               </div>
                             )}
                           </div>

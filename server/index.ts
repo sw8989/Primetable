@@ -1,5 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
+import { buildApiLogLine, MAX_API_BODY_SIZE } from "./security";
 import { setupVite, serveStatic, log } from "./vite";
 import dotenv from "dotenv";
 
@@ -7,8 +8,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: MAX_API_BODY_SIZE }));
+app.use(express.urlencoded({ extended: false, limit: MAX_API_BODY_SIZE }));
 
 app.use((req, res, next) => {
   const start = Date.now();
@@ -24,16 +25,15 @@ app.use((req, res, next) => {
   res.on("finish", () => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
-      let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
-        logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
-      }
-
-      if (logLine.length > 80) {
-        logLine = logLine.slice(0, 79) + "…";
-      }
-
-      log(logLine);
+      log(
+        buildApiLogLine({
+          method: req.method,
+          path,
+          statusCode: res.statusCode,
+          durationMs: duration,
+          responseBody: capturedJsonResponse,
+        }),
+      );
     }
   });
 

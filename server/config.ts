@@ -35,6 +35,7 @@ export const config = {
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
+  INTEGRATION_PROXY_TOKEN: process.env.INTEGRATION_PROXY_TOKEN || "",
 
   // External services configuration
   services: {

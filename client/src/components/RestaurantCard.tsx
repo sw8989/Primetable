@@ -2,25 +2,31 @@ import { useState } from 'react';
 import { MapPin, Heart, Clock, Users, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useToast } from '@/hooks/use-toast';
-import { Restaurant } from '@shared/schema';
+import type { Restaurant } from '@shared/schema';
 import { useBooking } from '@/hooks/useBooking';
 
 interface RestaurantCardProps {
   restaurant: Restaurant;
+  initialFavorite?: boolean;
+  onRemoveFavorite?: () => void;
 }
 
-const RestaurantCard = ({ restaurant }: RestaurantCardProps) => {
-  const [isFavorite, setIsFavorite] = useState(false);
+const RestaurantCard = ({ restaurant, initialFavorite = false, onRemoveFavorite }: RestaurantCardProps) => {
+  const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const { openBookingModal } = useBooking();
   const { toast } = useToast();
-  
+
   const toggleFavorite = () => {
+    if (isFavorite && onRemoveFavorite) {
+      onRemoveFavorite();
+      setIsFavorite(false);
+      return;
+    }
     setIsFavorite(prev => !prev);
-    
     toast({
-      title: isFavorite ? "Removed from favorites" : "Added to favorites",
-      description: isFavorite 
-        ? `${restaurant.name} has been removed from your favorites` 
+      title: isFavorite ? 'Removed from favorites' : 'Added to favorites',
+      description: isFavorite
+        ? `${restaurant.name} has been removed from your favorites`
         : `${restaurant.name} has been added to your favorites`,
     });
   };
@@ -63,7 +69,7 @@ const RestaurantCard = ({ restaurant }: RestaurantCardProps) => {
     <div className="restaurant-card bg-white rounded-lg overflow-hidden shadow-md transition hover:-translate-y-1 hover:shadow-xl">
       <div className="relative">
         <img 
-          src={restaurant.imageUrl} 
+          src={restaurant.imageUrl ?? undefined}
           alt={`Interior of ${restaurant.name}`} 
           className="w-full h-48 object-cover"
         />

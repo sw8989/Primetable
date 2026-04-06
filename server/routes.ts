@@ -11,8 +11,27 @@ import {
 import { bookingAgent } from "./services/bookingAgent";
 import { enhancedBookingAgent } from "./services/enhancedBookingAgent";
 import aiService from "./services/aiService";
+import { partySizeSchema, positiveIntSchema } from "./validators";
+import {
+  buildSafeHeadersForLog,
+  canAccessIntegrationProxy,
+  createRateLimiter,
+  fetchWithTimeout,
+  isAllowedProxyPath,
+  sanitizeIntegrationPath,
+  summarizeForLog,
+  toProxyErrorMessage,
+} from "./security";
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  const integrationRateLimiter = createRateLimiter({
+    windowMs: 60_000,
+    max: 30,
+  });
+
+  app.use("/api/smithery-proxy", integrationRateLimiter);
+  app.use("/api/firecrawl", integrationRateLimiter);
+
   // User routes
   app.post("/api/users/register", async (req: Request, res: Response) => {
     try {
@@ -88,7 +107,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/restaurants/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid restaurant id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const restaurant = await storage.getRestaurant(id);
       
       if (!restaurant) {
@@ -167,21 +190,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/bookings/user/:userId", async (req: Request, res: Response) => {
     try {
-      const userId = parseInt(req.params.userId);
-      const bookings = await storage.getBookingsByUser(userId);
-      
-      // Get restaurant details for each booking
-      const bookingsWithRestaurant = await Promise.all(
-        bookings.map(async (booking) => {
-          const restaurant = await storage.getRestaurant(booking.restaurantId);
-          return {
-            ...booking,
-            restaurant
-          };
-        })
-      );
-      
-      res.json(bookingsWithRestaurant);
+      const parsedUserId = positiveIntSchema.safeParse(req.params.userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "Invalid user id", errors: parsedUserId.error.format() });
+      }
+      const userId = parsedUserId.data;
+      const bookings = await storage.getBookingsWithRestaurantByUser(userId);
+      res.json(bookings);
     } catch (error) {
       res.status(500).json({ message: "Error fetching bookings" });
     }
@@ -189,7 +204,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/bookings/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid booking id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const booking = await storage.getBooking(id);
       
       if (!booking) {
@@ -210,7 +229,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.patch("/api/bookings/:id/confirm", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid booking id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const booking = await storage.getBooking(id);
       
       if (!booking) {
@@ -229,7 +252,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.patch("/api/bookings/:id/cancel", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid booking id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const booking = await storage.getBooking(id);
       
       if (!booking) {
@@ -254,7 +281,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Toggle scraping mode endpoint
   app.patch("/api/bookings/:id/toggle-scraping", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid booking id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const booking = await storage.getBooking(id);
       
       if (!booking) {
@@ -328,21 +359,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.get("/api/favorites/user/:userId", async (req: Request, res: Response) => {
     try {
-      const userId = parseInt(req.params.userId);
-      const favorites = await storage.getFavoritesByUser(userId);
-      
-      // Get restaurant details for each favorite
-      const favoritesWithRestaurant = await Promise.all(
-        favorites.map(async (favorite) => {
-          const restaurant = await storage.getRestaurant(favorite.restaurantId);
-          return {
-            ...favorite,
-            restaurant
-          };
-        })
-      );
-      
-      res.json(favoritesWithRestaurant);
+      const parsedUserId = positiveIntSchema.safeParse(req.params.userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "Invalid user id", errors: parsedUserId.error.format() });
+      }
+      const userId = parsedUserId.data;
+      const favorites = await storage.getFavoritesWithRestaurantByUser(userId);
+      res.json(favorites);
     } catch (error) {
       res.status(500).json({ message: "Error fetching favorites" });
     }
@@ -350,7 +373,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   
   app.delete("/api/favorites/:id", async (req: Request, res: Response) => {
     try {
-      const id = parseInt(req.params.id);
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid favorite id", errors: parsedId.error.format() });
+      }
+      const id = parsedId.data;
       const success = await storage.removeFavorite(id);
       
       if (!success) {
@@ -380,7 +407,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // If a restaurant ID is provided, get details to provide a specific context
       if (restaurantId) {
-        restaurant = await storage.getRestaurant(parseInt(restaurantId));
+        const parsedRestaurantId = positiveIntSchema.safeParse(restaurantId);
+        if (!parsedRestaurantId.success) {
+          return res.status(400).json({
+            error: "Invalid restaurant id",
+            details: parsedRestaurantId.error.format(),
+          });
+        }
+        restaurant = await storage.getRestaurant(parsedRestaurantId.data);
         if (restaurant) {
           context = `You are a restaurant booking specialist focusing on ${restaurant.name}, 
           a ${restaurant.cuisine} restaurant in ${restaurant.location}. 
@@ -657,7 +691,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get the path after /api/smithery-proxy/
       const pathSegments = req.path.split('/api/smithery-proxy/');
-      const smitheryPath = pathSegments.length > 1 ? pathSegments[1] : '';
+      const smitheryPath = sanitizeIntegrationPath(pathSegments.length > 1 ? pathSegments[1] : '');
+
+      if (!smitheryPath || !isAllowedProxyPath('smithery', smitheryPath)) {
+        return res.status(404).json({
+          error: true,
+          message: 'Unsupported Smithery proxy path',
+        });
+      }
+
+      if (!['GET', 'POST'].includes(req.method)) {
+        return res.status(405).json({
+          error: true,
+          message: `Method ${req.method} is not allowed for Smithery proxy`,
+        });
+      }
+
+      if (!canAccessIntegrationProxy(req, config.INTEGRATION_PROXY_TOKEN)) {
+        return res.status(401).json({
+          error: true,
+          message: 'Integration proxy access denied',
+        });
+      }
       
       // Check for Serper API specific paths
       if (smitheryPath === 'search' || smitheryPath === 'scrape' || smitheryPath === 'test') {
@@ -667,10 +722,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Base Smithery API URL for other requests
       const SMITHERY_BASE_URL = 'https://api.smithery.ai';
       
-      // Log the proxy request (exclude authorization headers)
-      const logSafeHeaders = { ...req.headers };
-      delete logSafeHeaders.authorization;
-      console.log(`Smithery proxy: ${req.method} ${smitheryPath}`, { headers: logSafeHeaders });
+      console.log(`Smithery proxy: ${req.method} ${smitheryPath}`, {
+        body: summarizeForLog(req.body),
+        headers: buildSafeHeadersForLog(req.headers),
+      });
       
       // Forward the request to Smithery
       try {
@@ -701,7 +756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         // Make the request to Smithery
-        const smitheryResponse = await fetch(url, fetchOptions);
+        const smitheryResponse = await fetchWithTimeout(url, fetchOptions);
         
         // Get the JSON response if possible
         let responseData;
@@ -715,10 +770,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Forward the response
         return res.status(smitheryResponse.status).json(responseData);
       } catch (smitheryError: any) {
-        console.error('Smithery proxy error:', smitheryError);
+        console.error('Smithery proxy error:', toProxyErrorMessage(smitheryError));
         return res.status(500).json({
           error: true,
-          message: smitheryError.message || 'Error calling Smithery API',
+          message: toProxyErrorMessage(smitheryError) || 'Error calling Smithery API',
         });
       }
     } catch (error) {
@@ -738,7 +793,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Get the path after /api/firecrawl/
       const pathSegments = req.path.split('/api/firecrawl/');
-      const fireCrawlPath = pathSegments.length > 1 ? pathSegments[1] : '';
+      const fireCrawlPath = sanitizeIntegrationPath(pathSegments.length > 1 ? pathSegments[1] : '');
+
+      if (!fireCrawlPath || !isAllowedProxyPath('firecrawl', fireCrawlPath)) {
+        return res.status(404).json({
+          success: false,
+          error: 'Unsupported FireCrawl API endpoint',
+        });
+      }
+
+      if (!['GET', 'POST'].includes(req.method)) {
+        return res.status(405).json({
+          success: false,
+          error: `Method ${req.method} is not allowed for FireCrawl proxy`,
+        });
+      }
+
+      if (!canAccessIntegrationProxy(req, config.INTEGRATION_PROXY_TOKEN)) {
+        return res.status(401).json({
+          success: false,
+          error: 'Integration proxy access denied',
+        });
+      }
       
       // Extract API key from headers or use default
       const apiKey = req.headers['x-firecrawl-api-key'] as string || config.FIRECRAWL_API_KEY || '';
@@ -753,10 +829,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Handle different endpoints
       return handleFireCrawlRequest(req, res, fireCrawlPath, apiKey, config);
     } catch (error: any) {
-      console.error('FireCrawl proxy error:', error);
+      console.error('FireCrawl proxy error:', toProxyErrorMessage(error));
       return res.status(500).json({
         success: false,
-        error: error.message || 'Failed to process FireCrawl request'
+        error: toProxyErrorMessage(error) || 'Failed to process FireCrawl request'
       });
     }
   });
@@ -785,7 +861,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         try {
-          console.log(`Processing FireCrawl search for: ${query}`);
+          console.log(`Processing FireCrawl search for: ${query}`, {
+            body: summarizeForLog(req.body),
+          });
           
           // Check if we should use simulation mode
           const useSimulation = !apiKey || process.env.SIMULATION_MODE === 'true';
@@ -822,7 +900,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('Calling real FireCrawl API for search');
           
           // Send request to FireCrawl API
-          const fireCrawlResponse = await fetch('https://api.firecrawl.dev/search', {
+          const fireCrawlResponse = await fetchWithTimeout('https://api.firecrawl.dev/search', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -869,7 +947,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         try {
-          console.log(`Processing FireCrawl scrape for: ${url}`);
+          console.log(`Processing FireCrawl scrape for: ${url}`, {
+            body: summarizeForLog(req.body),
+          });
           
           // Check if we should use simulation mode
           const useSimulation = !apiKey || process.env.SIMULATION_MODE === 'true';
@@ -895,7 +975,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           console.log('Calling real FireCrawl API for scrape');
           
           // Send request to FireCrawl API
-          const fireCrawlResponse = await fetch('https://api.firecrawl.dev/scrape', {
+          const fireCrawlResponse = await fetchWithTimeout('https://api.firecrawl.dev/scrape', {
             method: 'POST',
             headers: {
               'Content-Type': 'application/json',
@@ -982,7 +1062,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         try {
-          console.log(`Processing Serper search for: ${query}`);
+          console.log(`Processing Serper search for: ${query}`, {
+            body: summarizeForLog(req.body),
+          });
           
           // Simulate a search response since we can't make real API calls
           const simulatedResponse = {
@@ -1024,7 +1106,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         try {
-          console.log(`Processing Serper scrape for: ${url}`);
+          console.log(`Processing Serper scrape for: ${url}`, {
+            body: summarizeForLog(req.body),
+          });
           
           // Simulate a scrape response
           const simulatedResponse = {
@@ -1137,13 +1221,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Create booking request
+      const parsedPartySize = partySizeSchema.safeParse(req.body.partySize);
+      if (!parsedPartySize.success) {
+        return res.status(400).json({
+          success: false,
+          error: "Invalid partySize value",
+          details: parsedPartySize.error.format(),
+        });
+      }
+
       const bookingRequest = {
         restaurantName: req.body.restaurantName,
         platformId: req.body.platformId,
         platform: req.body.platform,
         date: bookingDate,
         time: req.body.time,
-        partySize: parseInt(req.body.partySize),
+        partySize: parsedPartySize.data,
         userEmail: req.body.userEmail,
         userPhone: req.body.userPhone,
         userName: req.body.userName,
@@ -1186,7 +1279,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             userId: 1, // Default user ID for testing
             date: bookingDate,
             time: req.body.time,
-            partySize: parseInt(req.body.partySize),
+            partySize: parsedPartySize.data,
             name: req.body.userName || req.body.name,
             email: req.body.userEmail || req.body.email,
             phone: req.body.userPhone || req.body.phone,
