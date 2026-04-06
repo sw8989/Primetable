@@ -1,0 +1,6 @@
+.DS_Store
+.claude/
+.playwright-cli/
+.superset/
+CLAUDE.md
+.repo-migration-backup/
