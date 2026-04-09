@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { executeToolCall, fetchTools, sendChatMessage } from '@/lib/api';
-import type { MCPXMessage, MCPXTool, MCPXToolCall } from '@/lib/types';
+import type { MCPXMessage, MCPXTool } from '@/lib/types';
 
 const SYSTEM_PROMPT = (name: string, postcode: string, partySize: number) =>
   `You are the Prime Table AI booking assistant for London's most exclusive restaurants. ` +
@@ -17,8 +17,10 @@ export function useChat(name: string, postcode: string, partySize: number) {
   const [messages, setMessages] = useState<MCPXMessage[]>([WELCOME(name)]);
   const [isProcessing, setIsProcessing] = useState(false);
   const toolsRef = useRef<MCPXTool[]>([]);
+  const isProcessingRef = useRef(false);
+  // Keep a ref in sync with state for reading inside send() without stale closure
+  const messagesRef = useRef<MCPXMessage[]>([WELCOME(name)]);
 
-  // Fetch available tools on mount
   useEffect(() => {
     fetchTools()
       .then(tools => { toolsRef.current = tools; })
@@ -27,12 +29,17 @@ export function useChat(name: string, postcode: string, partySize: number) {
 
   const send = useCallback(
     async (userText: string) => {
-      if (!userText.trim() || isProcessing) return;
+      if (!userText.trim() || isProcessingRef.current) return;
+
+      isProcessingRef.current = true;
+      setIsProcessing(true);
 
       const userMsg: MCPXMessage = { role: 'user', content: userText };
-
-      setMessages(prev => [...prev, userMsg]);
-      setIsProcessing(true);
+      setMessages(prev => {
+        const next = [...prev, userMsg];
+        messagesRef.current = next;
+        return next;
+      });
 
       try {
         const systemMsg: MCPXMessage = {
@@ -40,20 +47,24 @@ export function useChat(name: string, postcode: string, partySize: number) {
           content: SYSTEM_PROMPT(name, postcode, partySize),
         };
 
-        // Build full history for the API (system + all messages + new user msg)
-        const history = [systemMsg, ...messages, userMsg];
+        // Use a local variable for history so the tool-call loop never reads stale state
+        let currentHistory: MCPXMessage[] = [systemMsg, ...messagesRef.current];
 
-        let assistantResponse = await sendChatMessage(history, toolsRef.current);
-        setMessages(prev => [...prev, assistantResponse]);
+        let assistantResponse = await sendChatMessage(currentHistory, toolsRef.current);
+        currentHistory = [...currentHistory, assistantResponse];
+        setMessages(prev => {
+          const next = [...prev, assistantResponse];
+          messagesRef.current = next;
+          return next;
+        });
 
-        // Handle tool calls (same loop as MCPXClient on web)
+        // Tool-call loop: execute tools, append results, call AI again
         while (assistantResponse.tool_calls && assistantResponse.tool_calls.length > 0) {
           const toolMessages: MCPXMessage[] = [];
 
           for (const toolCall of assistantResponse.tool_calls) {
             const args = JSON.parse(toolCall.function.arguments) as Record<string, unknown>;
             const result = await executeToolCall(toolCall.function.name, args);
-
             toolMessages.push({
               role: 'tool',
               content: JSON.stringify(result),
@@ -62,32 +73,40 @@ export function useChat(name: string, postcode: string, partySize: number) {
             });
           }
 
-          setMessages(prev => [...prev, ...toolMessages]);
+          currentHistory = [...currentHistory, ...toolMessages];
+          setMessages(prev => {
+            const next = [...prev, ...toolMessages];
+            messagesRef.current = next;
+            return next;
+          });
 
-          const updatedHistory = [
-            systemMsg,
-            ...messages,
-            userMsg,
-            assistantResponse,
-            ...toolMessages,
-          ];
-          assistantResponse = await sendChatMessage(updatedHistory, toolsRef.current);
-          setMessages(prev => [...prev, assistantResponse]);
+          assistantResponse = await sendChatMessage(currentHistory, toolsRef.current);
+          currentHistory = [...currentHistory, assistantResponse];
+          setMessages(prev => {
+            const next = [...prev, assistantResponse];
+            messagesRef.current = next;
+            return next;
+          });
         }
       } catch {
-        setMessages(prev => [
-          ...prev,
-          { role: 'assistant', content: 'Something went wrong. Please try again.' },
-        ]);
+        const errorMsg: MCPXMessage = { role: 'assistant', content: 'Something went wrong. Please try again.' };
+        setMessages(prev => {
+          const next = [...prev, errorMsg];
+          messagesRef.current = next;
+          return next;
+        });
       } finally {
+        isProcessingRef.current = false;
         setIsProcessing(false);
       }
     },
-    [isProcessing, messages, name, postcode, partySize]
+    [name, postcode, partySize] // `messages` removed — history tracked via messagesRef
   );
 
   const reset = useCallback(() => {
-    setMessages([WELCOME(name)]);
+    const welcome = WELCOME(name);
+    messagesRef.current = [welcome];
+    setMessages([welcome]);
   }, [name]);
 
   return { messages, isProcessing, send, reset };
