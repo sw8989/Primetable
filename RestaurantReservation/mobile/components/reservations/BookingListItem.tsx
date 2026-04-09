@@ -8,7 +8,7 @@ interface Props {
 }
 
 function StatusDot({ status, agentStatus }: { status: Booking['status']; agentStatus: Booking['agentStatus'] }) {
-  let color = Colors.textMuted;
+  let color: string = Colors.textMuted;
   if (status === 'confirmed') color = Colors.statusGreen;
   else if (agentStatus === 'active') color = Colors.statusAmber;
 

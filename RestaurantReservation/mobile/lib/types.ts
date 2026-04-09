@@ -35,12 +35,14 @@ export interface Booking {
 
 // MCP message types (match MCPXClient.ts on web client)
 export interface MCPXMessage {
+  id?: string;
   role: 'user' | 'assistant' | 'tool' | 'system';
   content: string;
   name?: string;
   tool_calls?: MCPXToolCall[];
   tool_call_id?: string;
   function_name?: string;
+  bookingProposal?: BookingProposal;
 }
 
 export interface MCPXToolCall {
@@ -74,6 +76,7 @@ export interface BookingProposal {
   time: string;
   partySize: number;
   restaurantId?: number;
+  bookingId?: number;
 }
 
 // User profile stored locally

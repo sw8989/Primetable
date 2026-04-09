@@ -11,6 +11,7 @@ import { useProfile } from '@/hooks/useProfile';
 import { useChat } from '@/hooks/useChat';
 import MessageBubble from '@/components/chat/MessageBubble';
 import ToolActivity from '@/components/chat/ToolActivity';
+import BookingCard from '@/components/chat/BookingCard';
 import ChatInput from '@/components/chat/ChatInput';
 import { Colors, FontFamily, FontSize, Spacing } from '@/constants/theme';
 import type { MCPXMessage } from '@/lib/types';
@@ -43,7 +44,7 @@ export default function ChatScreen() {
   const postcode = profile?.postcode ?? '';
   const partySize = profile?.partySize ?? 2;
 
-  const { messages, isProcessing, send } = useChat(name, postcode, partySize);
+  const { messages, isProcessing, send, confirm } = useChat(name, postcode, partySize);
   const [input, setInput] = useState('');
   const listRef = useRef<FlatList>(null);
 
@@ -105,12 +106,25 @@ export default function ChatScreen() {
         <FlatList
           ref={listRef}
           data={visibleMessages}
-          keyExtractor={(_, i) => String(i)}
+          keyExtractor={item => item.id ?? item.content.slice(0, 20)}
           onContentSizeChange={() => listRef.current?.scrollToEnd({ animated: true })}
           contentContainerStyle={{ paddingVertical: Spacing.md }}
           renderItem={({ item }) => {
             if (isToolActivity(item)) {
               return <ToolActivity label={toolActivityLabel(item)} />;
+            }
+            if (item.bookingProposal) {
+              return (
+                <BookingCard
+                  proposal={item.bookingProposal}
+                  onConfirm={() => {
+                    if (item.bookingProposal?.bookingId != null) {
+                      confirm(item.bookingProposal.bookingId);
+                    }
+                  }}
+                  onChange={() => send('I\'d like to change the booking')}
+                />
+              );
             }
             return <MessageBubble role={item.role} content={item.content} />;
           }}

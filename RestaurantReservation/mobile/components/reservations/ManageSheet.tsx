@@ -50,7 +50,8 @@ export default function ManageSheet({ booking, onClose, onCancel }: Props) {
         style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'flex-end' }}
         onPress={onClose}
       >
-        <View
+        <Pressable
+          onPress={e => e.stopPropagation()}
           style={{
             backgroundColor: Colors.surface,
             borderTopLeftRadius: Radius.card * 2,
@@ -90,7 +91,7 @@ export default function ManageSheet({ booking, onClose, onCancel }: Props) {
               </Text>
             </Pressable>
           ))}
-        </View>
+        </Pressable>
       </Pressable>
     </Modal>
   );
