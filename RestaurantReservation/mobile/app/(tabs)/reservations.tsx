@@ -9,6 +9,11 @@ import type { Booking } from '@/lib/types';
 // Demo user — replace with real auth later
 const DEMO_USER_ID = 1;
 
+type ListItem =
+  | { type: 'header'; text: string; key: string }
+  | { type: 'booking'; booking: Booking; key: string }
+  | { type: 'empty'; key: string };
+
 function SectionLabel({ text }: { text: string }) {
   return (
     <Text
@@ -42,13 +47,8 @@ function EmptyState() {
 }
 
 export default function ReservationsScreen() {
-  const { upcoming, past, loading, cancel } = useReservations(DEMO_USER_ID);
+  const { upcoming, past, loading, refreshing, refresh, cancel } = useReservations(DEMO_USER_ID);
   const [managed, setManaged] = useState<Booking | null>(null);
-
-  type ListItem =
-    | { type: 'header'; text: string; key: string }
-    | { type: 'booking'; booking: Booking; key: string }
-    | { type: 'empty'; key: string };
 
   const data: ListItem[] = [];
 
@@ -90,7 +90,7 @@ export default function ReservationsScreen() {
         data={data}
         keyExtractor={item => item.key}
         refreshControl={
-          <RefreshControl refreshing={loading} tintColor={Colors.terracotta} />
+          <RefreshControl refreshing={refreshing} onRefresh={refresh} tintColor={Colors.terracotta} />
         }
         renderItem={({ item }) => {
           if (item.type === 'header') return <SectionLabel text={item.text} />;

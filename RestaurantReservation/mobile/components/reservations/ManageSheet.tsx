@@ -21,8 +21,12 @@ export default function ManageSheet({ booking, onClose, onCancel }: Props) {
           text: 'Cancel reservation',
           style: 'destructive',
           onPress: async () => {
-            await onCancel(booking!.id);
-            onClose();
+            try {
+              await onCancel(booking!.id);
+              onClose();
+            } catch {
+              Alert.alert('Error', 'Could not cancel reservation. Please try again.');
+            }
           },
         },
       ]
