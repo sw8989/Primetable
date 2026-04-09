@@ -19,6 +19,7 @@ export interface Booking {
   id: number;
   userId: number;
   restaurantId: number;
+  /** ISO 8601 string serialised from a DB timestamp */
   date: string;
   time: string;
   partySize: number;
@@ -26,6 +27,10 @@ export interface Booking {
   agentStatus: 'active' | 'success' | 'failed';
   platformBookingId: string | null;
   restaurant: Restaurant | null;
+  confirmed: boolean | null;
+  confirmationCode: string | null;
+  agentType: string | null;
+  createdAt: string | null;
 }
 
 // MCP message types (match MCPXClient.ts on web client)

@@ -1,4 +1,4 @@
-import { fetchRestaurants, fetchBookings, cancelBooking, sendChatMessage, fetchTools } from '@/lib/api';
+import { fetchRestaurants, fetchBookings, cancelBooking, confirmBooking, sendChatMessage, fetchTools, executeToolCall } from '@/lib/api';
 
 const BASE = 'http://localhost:5000';
 
@@ -73,5 +73,36 @@ describe('fetchTools', () => {
     });
     const result = await fetchTools();
     expect(result).toEqual(tools);
+  });
+});
+
+describe('confirmBooking', () => {
+  it('calls PATCH /api/bookings/:id/confirm', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ id: 5, status: 'confirmed' }),
+    });
+    await confirmBooking(5);
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${BASE}/api/bookings/5/confirm`,
+      expect.objectContaining({ method: 'PATCH' })
+    );
+  });
+});
+
+describe('executeToolCall', () => {
+  it('calls POST /api/mcp/tool-call with tool and parameters', async () => {
+    (global.fetch as jest.Mock).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ restaurants: [] }),
+    });
+    await executeToolCall('search_restaurants', { query: 'Italian' });
+    expect(global.fetch).toHaveBeenCalledWith(
+      `${BASE}/api/mcp/tool-call`,
+      expect.objectContaining({
+        method: 'POST',
+        body: JSON.stringify({ tool: 'search_restaurants', parameters: { query: 'Italian' } }),
+      })
+    );
   });
 });
