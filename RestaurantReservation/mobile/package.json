@@ -10,7 +10,9 @@
   },
   "jest": {
     "preset": "jest-expo",
-    "setupFilesAfterFramework": ["@testing-library/jest-native/extend-expect"],
+    "setupFilesAfterEnv": [
+      "@testing-library/jest-native/extend-expect"
+    ],
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/$1"
     },
@@ -41,7 +43,7 @@
     "@testing-library/jest-native": "^5.4.3",
     "@testing-library/react-native": "^13.3.3",
     "@types/react": "~19.1.0",
-    "jest-expo": "^55.0.15",
+    "jest-expo": "^54.0.17",
     "tailwindcss": "^3.3.2",
     "typescript": "~5.9.2"
   },
