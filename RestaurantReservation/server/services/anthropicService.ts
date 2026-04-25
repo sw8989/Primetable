@@ -1,8 +1,8 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from '../config';
 
-// the newest Anthropic model is "claude-3-7-sonnet-20250219" which was released February 24, 2025
-const CLAUDE_MODEL = 'claude-3-7-sonnet-20250219';
+// the newest Anthropic model is "claude-sonnet-4-6"
+const CLAUDE_MODEL = 'claude-sonnet-4-6';
 
 // Initialize the Anthropic client if an API key is available
 let anthropicClient: Anthropic | null = null;
@@ -80,9 +80,9 @@ async function suggestAlternativeTimes(
   preferredDate: Date,
   preferredTime: string,
   partySize: number
-): Promise<{ suggestions: string[] }> {
+): Promise<{ suggestions: string[]; reasoning: string }> {
   if (!isAvailable()) {
-    return { suggestions: [] };
+    return { suggestions: [], reasoning: "" };
   }
 
   try {
@@ -124,18 +124,18 @@ async function suggestAlternativeTimes(
       if (suggestionsMatch) {
         try {
           const suggestions = JSON.parse(suggestionsMatch[0]);
-          return { suggestions };
+          return { suggestions, reasoning: "Based on typical dining patterns for London restaurants." };
         } catch (e) {
           console.error('Error parsing JSON from Anthropic response:', e);
-          return { suggestions: [] };
+          return { suggestions: [], reasoning: "" };
         }
       }
     }
-    
-    return { suggestions: [] };
+
+    return { suggestions: [], reasoning: "" };
   } catch (error) {
     console.error('Error generating alternative times with Anthropic:', error);
-    return { suggestions: [] };
+    return { suggestions: [], reasoning: "" };
   }
 }
 
@@ -193,11 +193,78 @@ async function generateBookingMessage(
   }
 }
 
+type ChatMessage = {
+  role: string;
+  content: string;
+  tool_calls?: any;
+  tool_call_id?: string;
+  function_name?: string;
+};
+
+async function processMcpChat(
+  messages: ChatMessage[],
+  context: string,
+  _restaurant?: any,
+): Promise<{ role: string; content: string }> {
+  if (!isAvailable()) {
+    return {
+      role: "assistant",
+      content: "I'm a restaurant booking assistant. How can I help you today?",
+    };
+  }
+
+  try {
+    // Convert from OpenAI-style message array to Anthropic format.
+    // Anthropic takes system as a top-level param, and only supports user/assistant turns.
+    const anthropicMessages: Array<{ role: "user" | "assistant"; content: string }> = [];
+
+    for (const msg of messages) {
+      if (msg.role === "user") {
+        anthropicMessages.push({ role: "user", content: msg.content || "" });
+      } else if (msg.role === "assistant" && !msg.tool_calls) {
+        anthropicMessages.push({ role: "assistant", content: msg.content || "" });
+      }
+      // Tool-call turns are skipped — Anthropic tool use is not wired up yet.
+    }
+
+    if (anthropicMessages.length === 0) {
+      return { role: "assistant", content: "How can I help you with your restaurant booking?" };
+    }
+
+    const response = await anthropicClient!.messages.create({
+      model: CLAUDE_MODEL,
+      max_tokens: 800,
+      system: context,
+      messages: anthropicMessages,
+    });
+
+    if (response.content[0].type === "text") {
+      return { role: "assistant", content: response.content[0].text };
+    }
+
+    return { role: "assistant", content: "I'm sorry, I could not process your request right now." };
+  } catch (error) {
+    console.error("Error in Anthropic processMcpChat:", error);
+    return {
+      role: "assistant",
+      content: "I encountered an error while processing your request. Please try again.",
+    };
+  }
+}
+
 const anthropicService = {
   isAvailable,
   analyzeBookingStrategy,
   suggestAlternativeTimes,
-  generateBookingMessage
+  generateBookingMessage,
+  processMcpChat,
+  processChat: async (message: string, context?: string): Promise<string> => {
+    const result = await processMcpChat(
+      [{ role: "user", content: message }],
+      context || "You are a helpful restaurant booking assistant for London's exclusive restaurants.",
+    );
+    return result.content;
+  },
 };
 
 export default anthropicService;
