@@ -62,7 +62,7 @@ try {
  */
 export async function analyzeBookingStrategy(
   restaurantName: string,
-  bookingInfo: string,
+  bookingInfo: string | null,
   difficulty: string,
 ): Promise<string> {
   // If OpenAI client is not available, return a fallback strategy
@@ -82,8 +82,8 @@ export async function analyzeBookingStrategy(
         },
         {
           role: "user",
-          content: `Analyze the best strategy for booking a table at ${restaurantName}. 
-                   Booking information: ${bookingInfo}
+          content: `Analyze the best strategy for booking a table at ${restaurantName}.
+                   Booking information: ${bookingInfo || 'No additional information available'}
                    Difficulty level: ${difficulty}
                    
                    Provide a specific strategy with timing recommendations and approach.`,
@@ -180,17 +180,14 @@ export async function suggestAlternativeTimes(
  */
 export async function generateBookingMessage(
   restaurantName: string,
-  cuisine: string,
   date: Date,
   time: string,
   partySize: number,
-  isConfirmation: boolean = true,
+  userName: string,
 ): Promise<string> {
   // If OpenAI client is not available, return standard message
   if (!openai) {
-    return isConfirmation
-      ? `Dear guest, your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time} for ${partySize} people has been confirmed. We look forward to serving you! - The Prime Table Team`
-      : `Dear guest, we have an update regarding your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time}. Please review your reservation details. - The Prime Table Team`;
+    return `Dear ${userName}, your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time} for ${partySize} people has been confirmed. We look forward to serving you! - The Prime Table Team`;
   }
 
   try {
@@ -201,19 +198,17 @@ export async function generateBookingMessage(
       day: "numeric",
     });
 
-    const messageType = isConfirmation ? "confirmation" : "update";
-
     // The newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
     const response = await openai.chat.completions.create({
       model: "gpt-4o",
       messages: [
         {
           role: "system",
-          content: `You are a professional restaurant booking assistant. Create a personalized, enthusiastic ${messageType} message.`,
+          content: `You are a professional restaurant booking assistant. Create a personalized, enthusiastic booking confirmation message.`,
         },
         {
           role: "user",
-          content: `Create a personalized booking ${messageType} message for a reservation at ${restaurantName} (${cuisine} cuisine).
+          content: `Create a personalized booking confirmation message for ${userName}'s reservation at ${restaurantName}.
                    Reservation details: ${dateStr} at ${time} for ${partySize} people.
                    Keep it concise, professional, but with personality. Include a greeting and sign-off.`,
         },
@@ -227,9 +222,7 @@ export async function generateBookingMessage(
     );
   } catch (error) {
     console.error("Error generating booking message:", error);
-    return isConfirmation
-      ? `Your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time} has been confirmed.`
-      : `Your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time} has been updated.`;
+    return `Your booking at ${restaurantName} on ${date.toLocaleDateString()} at ${time} has been confirmed.`;
   }
 }
 

@@ -44,7 +44,7 @@ export interface IStorage {
   // Conversation operations
   getConversation(id: number): Promise<Conversation | undefined>;
   getConversationsByUser(userId: number): Promise<Conversation[]>;
-  createConversation(conversation: Omit<InsertConversation, never>): Promise<Conversation>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
   appendConversationMessage(id: number, message: ConversationMessage): Promise<Conversation | undefined>;
 
   // Search operations
@@ -258,7 +258,7 @@ export class MemStorage implements IStorage {
     );
   }
 
-  async createConversation(data: Omit<InsertConversation, never>): Promise<Conversation> {
+  async createConversation(data: InsertConversation): Promise<Conversation> {
     const id = this.currentConversationId++;
     const now = new Date();
     const conv: Conversation = {
@@ -701,7 +701,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async createConversation(data: Omit<InsertConversation, never>): Promise<Conversation> {
+  async createConversation(data: InsertConversation): Promise<Conversation> {
     const [conv] = await db.insert(conversations).values(data).returning();
     return conv;
   }

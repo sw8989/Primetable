@@ -147,11 +147,9 @@ export const conversations = pgTable("conversations", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
-export const insertConversationSchema = createInsertSchema(conversations).pick({
-  userId: true,
-  restaurantId: true,
-  messages: true,
-});
+export const insertConversationSchema = createInsertSchema(conversations)
+  .pick({ userId: true, restaurantId: true, messages: true })
+  .extend({ messages: z.array(ConversationMessageSchema).default([]) });
 
 // Types
 export type User = typeof users.$inferSelect;
