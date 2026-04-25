@@ -35,6 +35,7 @@ describe("conversation threads", () => {
 describe("aiService facade", () => {
   it("exposes processMcpChat when the underlying service has it", async () => {
     // Dynamically import after mocking env
+    vi.resetModules();
     vi.stubEnv("OPENAI_API_KEY", "test-key");
     const { default: aiService } = await import("../../server/services/aiService");
     expect(typeof aiService.processMcpChat).toBe("function");

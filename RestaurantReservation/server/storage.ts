@@ -702,8 +702,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createConversation(data: InsertConversation): Promise<Conversation> {
-    const [conv] = await db.insert(conversations).values(data).returning();
-    return conv;
+    try {
+      const [conv] = await db.insert(conversations).values(data).returning();
+      return conv;
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      throw error;
+    }
   }
 
   async appendConversationMessage(id: number, message: ConversationMessage): Promise<Conversation | undefined> {

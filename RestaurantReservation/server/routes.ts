@@ -447,8 +447,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (service) {
           if (isMcpxRequest && service.processMcpChat) {
             // Use MCP protocol with message history
-            console.log('Using MCP chat protocol with message history', { 
-              service: service.name || 'unknown',
+            console.log('Using MCP chat protocol with message history', {
+              service: aiService.name || 'unknown',
               messageCount: messages.length,
               hasTools: hasTools,
               toolCount: hasTools ? tools.length : 0,
@@ -491,7 +491,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
           } else if (service.processChat) {
             // Fallback to standard chat interface
-            console.log('Using standard chat interface with service:', service.name || 'unknown');
+            console.log('Using standard chat interface with service:', aiService.name || 'unknown');
             const response = await service.processChat(message, context);
             
             // Format as an MCPX message for compatibility
@@ -605,12 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bookingTools = getBookingTools();
       
       // Get AI service tools
-      const service = aiService.getService();
       let aiTools: any[] = [];
-      
-      if (service && service.getMcpTools) {
-        aiTools = await service.getMcpTools();
-      }
+      aiTools = await aiService.getMcpTools();
       
       // Combine all tools
       const allTools = [...bookingTools, ...aiTools];

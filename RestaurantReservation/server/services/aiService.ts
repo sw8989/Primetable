@@ -112,6 +112,21 @@ class AiService {
     }
     return service.processMcpChat(messages, context, restaurant, userId);
   }
+
+  get name(): string {
+    if (this.availableProviders[this.preferredProvider]) {
+      return this.preferredProvider;
+    }
+    if (this.availableProviders.anthropic) return "anthropic";
+    if (this.availableProviders.openai) return "openai";
+    return "none";
+  }
+
+  async getMcpTools(): Promise<any[]> {
+    const service = this.getService();
+    if (!service || !("getMcpTools" in service)) return [];
+    return (service as any).getMcpTools();
+  }
 }
 
 const aiService = new AiService();
