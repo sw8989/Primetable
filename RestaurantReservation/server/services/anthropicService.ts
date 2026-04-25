@@ -205,6 +205,7 @@ async function processMcpChat(
   messages: ChatMessage[],
   context: string,
   _restaurant?: any,
+  _userId?: number,
 ): Promise<{ role: string; content: string }> {
   if (!isAvailable()) {
     return {

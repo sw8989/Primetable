@@ -393,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Chatbot test endpoint
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
-      const { message, restaurantId, messages, tools } = req.body;
+      const { message, restaurantId, messages, tools, userId } = req.body;
       
       if (!message && !messages) {
         return res.status(400).json({ 
@@ -456,7 +456,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             // Process the chat with the MCP protocol
-            const mcpResponse = await service.processMcpChat(messages, context, restaurant, tools);
+            const mcpResponse = await service.processMcpChat(messages, context, restaurant, userId);
             
             // Log response for debugging (shortened to avoid cluttering logs)
             if (typeof mcpResponse === 'object') {

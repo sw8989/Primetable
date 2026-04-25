@@ -101,6 +101,7 @@ class AiService {
     messages: ChatMessage[],
     context: string,
     restaurant?: any,
+    userId?: number,
   ): Promise<McpResponse> {
     const service = this.getService();
     if (!service || !service.processMcpChat) {
@@ -109,7 +110,7 @@ class AiService {
         content: "I'm the Prime Table booking assistant. How can I assist you today?",
       };
     }
-    return service.processMcpChat(messages, context, restaurant);
+    return service.processMcpChat(messages, context, restaurant, userId);
   }
 }
 

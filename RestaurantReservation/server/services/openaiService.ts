@@ -321,6 +321,7 @@ export async function processMcpChat(
   }>,
   context: string,
   restaurant?: any,
+  userId?: number,
 ): Promise<{
   role: string;
   content: string;
@@ -559,9 +560,8 @@ export async function processMcpChat(
             toolName === "getRestaurantInfo"
           ) {
             // Make sure userId is included for booking operations
-            if (toolName === "makeReservation" && !args.userId) {
-              // Default to user ID 1 for demo purposes
-              args.userId = 1;
+            if (toolName === "makeReservation" && !args.userId && userId) {
+              args.userId = userId;
             }
           }
 
