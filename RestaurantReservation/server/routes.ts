@@ -393,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Chatbot test endpoint
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
-      const { message, restaurantId, messages, tools, userId } = req.body;
+      const { message, restaurantId, messages, tools, conversationId, userId } = req.body;
       
       if (!message && !messages) {
         return res.status(400).json({ 
@@ -467,9 +467,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
               console.log('MCP response:', JSON.stringify(logResponse));
             }
             
-            // Return the MCPX-formatted response
-            return res.json({ 
-              message: mcpResponse 
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                if (message) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "user",
+                    content: message,
+                  });
+                }
+                if (mcpResponse.content) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "assistant",
+                    content: mcpResponse.content,
+                  });
+                }
+              }
+            }
+            return res.json({
+              message: mcpResponse,
+              conversationId: conversationId ?? null,
             });
           } else if (service.processChat) {
             // Fallback to standard chat interface
@@ -482,48 +499,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
               content: response
             };
             
-            return res.json({ 
-              message: formattedResponse 
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                if (message) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "user",
+                    content: message,
+                  });
+                }
+                await storage.appendConversationMessage(parsedConvId.data, {
+                  role: "assistant",
+                  content: formattedResponse.content,
+                });
+              }
+            }
+            return res.json({
+              message: formattedResponse,
+              conversationId: conversationId ?? null,
             });
           } else {
             console.log('No chat processing available');
-            return res.json({ 
-              message: {
-                role: 'assistant',
-                content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+            const fallbackMsg = {
+              role: 'assistant',
+              content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+            };
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                if (message) {
+                  await storage.appendConversationMessage(parsedConvId.data, { role: "user", content: message });
+                }
+                await storage.appendConversationMessage(parsedConvId.data, { role: "assistant", content: fallbackMsg.content });
               }
+            }
+            return res.json({
+              message: fallbackMsg,
+              conversationId: conversationId ?? null,
             });
           }
         } else {
           console.log('Falling back to simulation mode - no AI service available');
-          return res.json({ 
-            message: {
-              role: 'assistant',
-              content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+          const fallbackMsg = {
+            role: 'assistant',
+            content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+          };
+          if (conversationId) {
+            const parsedConvId = positiveIntSchema.safeParse(conversationId);
+            if (parsedConvId.success) {
+              if (message) {
+                await storage.appendConversationMessage(parsedConvId.data, { role: "user", content: message });
+              }
+              await storage.appendConversationMessage(parsedConvId.data, { role: "assistant", content: fallbackMsg.content });
             }
+          }
+          return res.json({
+            message: fallbackMsg,
+            conversationId: conversationId ?? null,
           });
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
-        
+
         // Check for quota/rate limit errors
         const openAIError = aiError as any;
         if (
-          openAIError.status === 429 || 
+          openAIError.status === 429 ||
           (openAIError.error && openAIError.error.code === 'insufficient_quota')
         ) {
-          return res.json({ 
+          return res.json({
             message: {
               role: 'assistant',
               content: "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance."
-            }
+            },
+            conversationId: conversationId ?? null,
           });
         } else {
-          return res.json({ 
+          return res.json({
             message: {
               role: 'assistant',
               content: "I encountered an issue processing your request. Please try again later."
-            }
+            },
+            conversationId: conversationId ?? null,
           });
         }
       }
@@ -1332,6 +1389,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         error: `Booking automation failed: ${errorMessage}` 
       });
+    }
+  });
+
+  // Conversation thread routes
+  app.post("/api/conversations", async (req: Request, res: Response) => {
+    try {
+      const { userId, restaurantId } = req.body;
+      const parsedUserId = positiveIntSchema.safeParse(userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "userId is required and must be a positive integer" });
+      }
+      const conv = await storage.createConversation({
+        userId: parsedUserId.data,
+        restaurantId: restaurantId ?? null,
+        messages: [],
+      });
+      return res.status(201).json(conv);
+    } catch (error) {
+      res.status(500).json({ message: "Error creating conversation" });
+    }
+  });
+
+  app.get("/api/conversations/user/:userId", async (req: Request, res: Response) => {
+    try {
+      const parsedUserId = positiveIntSchema.safeParse(req.params.userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "Invalid user id" });
+      }
+      const convs = await storage.getConversationsByUser(parsedUserId.data);
+      return res.json(convs);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching conversations" });
+    }
+  });
+
+  app.get("/api/conversations/:id", async (req: Request, res: Response) => {
+    try {
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid conversation id" });
+      }
+      const conv = await storage.getConversation(parsedId.data);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      return res.json(conv);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching conversation" });
     }
   });
 

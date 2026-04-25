@@ -41,3 +41,72 @@ describe("aiService facade", () => {
     vi.unstubAllEnvs();
   });
 });
+
+import request from "supertest";
+import express from "express";
+import { registerRoutes } from "../../server/routes";
+
+// Use in-memory storage for the API integration tests (no DATABASE_URL needed)
+vi.mock("../../server/storage", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("../../server/storage")>();
+  return { ...actual, storage: new actual.MemStorage() };
+});
+
+vi.mock("../../server/services/bookingAgent", () => ({
+  bookingAgent: { startBookingProcess: vi.fn(), stopBookingProcess: vi.fn() },
+}));
+
+vi.mock("../../server/services/enhancedBookingAgent", () => ({
+  enhancedBookingAgent: { startBookingProcess: vi.fn(), stopBookingProcess: vi.fn() },
+}));
+
+describe("conversation thread API", () => {
+  let app: express.Express;
+  let server: any;
+
+  beforeAll(async () => {
+    app = express();
+    app.use(express.json());
+    server = await registerRoutes(app);
+  });
+
+  afterAll(() => server.close());
+
+  it("POST /api/conversations creates a new conversation", async () => {
+    const res = await request(app)
+      .post("/api/conversations")
+      .send({ userId: 1, restaurantId: null });
+    expect(res.status).toBe(201);
+    expect(res.body.id).toBeDefined();
+    expect(res.body.userId).toBe(1);
+    expect(res.body.messages).toEqual([]);
+  });
+
+  it("GET /api/conversations/user/:userId lists conversations", async () => {
+    await request(app).post("/api/conversations").send({ userId: 3 });
+    await request(app).post("/api/conversations").send({ userId: 3 });
+
+    const res = await request(app).get("/api/conversations/user/3");
+    expect(res.status).toBe(200);
+    expect(res.body.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("POST /api/chat with conversationId persists messages", async () => {
+    const createRes = await request(app)
+      .post("/api/conversations")
+      .send({ userId: 1 });
+    const conversationId = createRes.body.id;
+
+    const chatRes = await request(app).post("/api/chat").send({
+      message: "What are the best Italian restaurants in London?",
+      conversationId,
+      userId: 1,
+    });
+    expect(chatRes.status).toBe(200);
+    expect(chatRes.body.conversationId).toBe(conversationId);
+
+    const convRes = await request(app).get(`/api/conversations/${conversationId}`);
+    expect(convRes.status).toBe(200);
+    expect(convRes.body.messages.length).toBeGreaterThanOrEqual(1);
+  });
+});
