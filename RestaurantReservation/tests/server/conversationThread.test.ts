@@ -1,4 +1,4 @@
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi } from "vitest";
 import { MemStorage } from "../../server/storage";
 
 describe("conversation threads", () => {
@@ -29,5 +29,15 @@ describe("conversation threads", () => {
     const storage = new MemStorage();
     const result = await storage.getConversation(9999);
     expect(result).toBeUndefined();
+  });
+});
+
+describe("aiService facade", () => {
+  it("exposes processMcpChat when the underlying service has it", async () => {
+    // Dynamically import after mocking env
+    vi.stubEnv("OPENAI_API_KEY", "test-key");
+    const { default: aiService } = await import("../../server/services/aiService");
+    expect(typeof aiService.processMcpChat).toBe("function");
+    vi.unstubAllEnvs();
   });
 });
