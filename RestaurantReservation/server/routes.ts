@@ -456,8 +456,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             // Process the chat with the MCP protocol
-            const mcpResponse = await service.processMcpChat(messages, context, restaurant, userId);
-            
+            const mcpResponse = await service.processMcpChat(messages, context, restaurant, userId ? Number(userId) : undefined);
+
             // Log response for debugging (shortened to avoid cluttering logs)
             if (typeof mcpResponse === 'object') {
               const logResponse = { ...mcpResponse };
@@ -466,14 +466,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               console.log('MCP response:', JSON.stringify(logResponse));
             }
-            
+
             if (conversationId) {
               const parsedConvId = positiveIntSchema.safeParse(conversationId);
               if (parsedConvId.success) {
-                if (message) {
+                const userContent = message ?? (Array.isArray(messages) ? messages.findLast((m: any) => m.role === "user")?.content : undefined);
+                if (userContent) {
                   await storage.appendConversationMessage(parsedConvId.data, {
                     role: "user",
-                    content: message,
+                    content: userContent,
                   });
                 }
                 if (mcpResponse.content) {
@@ -586,7 +587,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
     } catch (error) {
       console.error("Chat error:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Error processing chat request",
         message: {
           role: 'assistant',
@@ -1400,9 +1401,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!parsedUserId.success) {
         return res.status(400).json({ message: "userId is required and must be a positive integer" });
       }
+      let parsedRestaurantId: number | null = null;
+      if (restaurantId != null) {
+        const result = positiveIntSchema.safeParse(restaurantId);
+        if (!result.success) {
+          return res.status(400).json({ message: "restaurantId must be a positive integer" });
+        }
+        parsedRestaurantId = result.data;
+      }
       const conv = await storage.createConversation({
         userId: parsedUserId.data,
-        restaurantId: restaurantId ?? null,
+        restaurantId: parsedRestaurantId,
         messages: [],
       });
       return res.status(201).json(conv);

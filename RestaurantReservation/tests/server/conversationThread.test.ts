@@ -107,6 +107,8 @@ describe("conversation thread API", () => {
 
     const convRes = await request(app).get(`/api/conversations/${conversationId}`);
     expect(convRes.status).toBe(200);
-    expect(convRes.body.messages.length).toBeGreaterThanOrEqual(1);
+    expect(convRes.body.messages.length).toBeGreaterThanOrEqual(2);
+    expect(convRes.body.messages[0].role).toBe("user");
+    expect(convRes.body.messages[1].role).toBe("assistant");
   });
 });
