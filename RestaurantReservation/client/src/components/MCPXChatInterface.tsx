@@ -8,32 +8,29 @@
 
 import { useState, useEffect, useRef } from 'react';
 import {
-  User,
   Send,
-  Bot,
   Loader2,
   Search,
   Calendar,
   Clock,
-  Users,
-  MapPin,
-  Utensils,
   Wrench,
   Globe,
-  Database
+  Database,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MCPXClient, MCPXMessage } from '@/lib/mcp/MCPXClient';
 import type { Restaurant } from '@shared/schema';
 import { useBooking } from '@/hooks/useBooking';
 import { useConversation } from '@/hooks/useConversation';
 import { createConversation } from '@/lib/conversationStorage';
 import { useToast } from '@/hooks/use-toast';
-import { RotateCcw } from 'lucide-react';
+
+// Placeholder user ID for API interactions
+const PLACEHOLDER_USER_ID = 1;
 
 // Mapping of tool names to icons for visual representation
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -107,7 +104,7 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
       initialSystemPrompt: initialSystemPrompt || undefined,
     });
     client.testFormatConversion();
-    client.setContext({ conversationId: conversationId ?? undefined, restaurantId, userId: 1 });
+    client.setContext({ conversationId: conversationId ?? undefined, restaurantId, userId: PLACEHOLDER_USER_ID });
 
     if (preloadedMessages.length > 0) {
       client.loadHistory(preloadedMessages);
@@ -138,7 +135,7 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
       let activeConversationId = conversationId;
       if (activeConversationId == null) {
         try {
-          activeConversationId = await createConversation(1, restaurantId);
+          activeConversationId = await createConversation(PLACEHOLDER_USER_ID, restaurantId);
           onConversationCreated(activeConversationId);
           mcpxClient.setContext({ conversationId: activeConversationId });
         } catch {
@@ -228,15 +225,12 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
   
   const handleNew = () => {
     startNewThread();
-    if (mcpxClient) {
-      mcpxClient.reset();
-      setMessages(mcpxClient.getMessages());
-    }
     setMcpxClient(null);
   };
 
   const handleResume = () => {
     resumePreviousThread();
+    setMessages([]);
     setMcpxClient(null);
   };
   
