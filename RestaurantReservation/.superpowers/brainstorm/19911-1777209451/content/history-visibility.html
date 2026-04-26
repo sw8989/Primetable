@@ -1,0 +1,29 @@
+<h2>How visible should conversation history be?</h2>
+<p class="subtitle">The backend now stores threads — how much of this should the user actually see?</p>
+
+<div class="options">
+  <div class="option" data-choice="a" onclick="toggleSelect(this)">
+    <div class="letter">A</div>
+    <div class="content">
+      <h3>Silent persistence</h3>
+      <p>Conversation is stored invisibly. The same thread continues across page reloads — the chat just picks up where it left off. No history panel, no thread list.</p>
+      <p style="margin-top:8px;font-size:13px;color:#888">Simplest to build. User just notices their chat "remembers" them.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="b" onclick="toggleSelect(this)">
+    <div class="letter">B</div>
+    <div class="content">
+      <h3>New chat + resume last</h3>
+      <p>A "New conversation" button clears the chat. A "Resume" button (or auto-resume on load) brings back the last thread. No full history list.</p>
+      <p style="margin-top:8px;font-size:13px;color:#888">One step up. User has control without a full sidebar.</p>
+    </div>
+  </div>
+  <div class="option" data-choice="c" onclick="toggleSelect(this)">
+    <div class="letter">C</div>
+    <div class="content">
+      <h3>Conversation history panel</h3>
+      <p>A sidebar or dropdown lists past conversations (by date or restaurant context). User can click any to resume it. Like Claude.ai or ChatGPT sidebar.</p>
+      <p style="margin-top:8px;font-size:13px;color:#888">Most powerful, most work. Makes threads a first-class feature.</p>
+    </div>
+  </div>
+</div>

@@ -531,6 +531,7 @@ export class MCPXClient {
     // Clear conversation and restaurant context
     this.conversationId = undefined;
     this.restaurantId = undefined;
+    this.userId = undefined;
 
     // Keep the system message if it exists
     const systemMessage = this.messages.find(msg => msg.role === 'system');
