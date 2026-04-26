@@ -193,7 +193,7 @@ export class MCPXClient {
   private simulationMode: boolean = false;
   private conversationId?: number;
   private restaurantId?: number;
-  private userId: number = 1;
+  private userId?: number;
   
   /**
    * Initialize the MCPX client
@@ -528,6 +528,10 @@ export class MCPXClient {
    * Reset the conversation
    */
   reset(): void {
+    // Clear conversation and restaurant context
+    this.conversationId = undefined;
+    this.restaurantId = undefined;
+
     // Keep the system message if it exists
     const systemMessage = this.messages.find(msg => msg.role === 'system');
 
@@ -551,7 +555,8 @@ export class MCPXClient {
   }
 
   loadHistory(msgs: MCPXMessage[]): void {
-    this.messages = [...msgs];
+    const systemMessage = this.messages.find(msg => msg.role === 'system');
+    this.messages = systemMessage ? [systemMessage, ...msgs] : [...msgs];
   }
 
   /**

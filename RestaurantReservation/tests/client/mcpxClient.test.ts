@@ -35,18 +35,37 @@ describe('MCPXClient.setContext / getConversationId', () => {
     const client = new MCPXClient({ restaurants: RESTAURANTS });
     expect(client.getConversationId()).toBeUndefined();
   });
+
+  it('reset clears conversationId', async () => {
+    const client = new MCPXClient({ restaurants: RESTAURANTS });
+    await client.processMessage('test'); // server returns conversationId: 55
+    client.reset();
+    expect(client.getConversationId()).toBeUndefined();
+  });
 });
 
 describe('MCPXClient.loadHistory', () => {
-  it('replaces internal messages with provided history', () => {
-    const client = new MCPXClient({ restaurants: RESTAURANTS });
+  it('replaces non-system messages but preserves system message', () => {
+    const client = new MCPXClient({ restaurants: RESTAURANTS, initialSystemPrompt: 'You are helpful.' });
     const history = [
       { role: 'user' as const, content: 'hi' },
       { role: 'assistant' as const, content: 'hello' },
     ];
     client.loadHistory(history);
     const msgs = client.getMessages();
-    expect(msgs).toHaveLength(2);
+    expect(msgs[0].role).toBe('system');
+    expect(msgs[1].content).toBe('hi');
+    expect(msgs[2].content).toBe('hello');
+  });
+
+  it('works without a system message', () => {
+    const client = new MCPXClient({ restaurants: RESTAURANTS }); // no initialSystemPrompt
+    const history = [
+      { role: 'user' as const, content: 'hi' },
+      { role: 'assistant' as const, content: 'hello' },
+    ];
+    client.loadHistory(history);
+    const msgs = client.getMessages();
     expect(msgs[0].content).toBe('hi');
   });
 });
