@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import type { MCPXMessage } from '@/lib/mcp/MCPXClient';
 import {
   loadConversationId,
@@ -35,9 +35,21 @@ export function useConversation(restaurantId?: number): UseConversationResult {
     };
   });
 
+  // Fix 1: Add unmount guard
+  const isMountedRef = useRef(true);
+  useEffect(() => {
+    return () => { isMountedRef.current = false; };
+  }, []);
+
+  // Fix 2: Use ref for previousConversationId to avoid unnecessary function recreation
+  const previousConversationIdRef = useRef<number | null>(state.previousConversationId);
+  useEffect(() => {
+    previousConversationIdRef.current = state.previousConversationId;
+  }, [state.previousConversationId]);
+
   useEffect(() => {
     const stored = loadConversationId(restaurantId);
-    if (!stored) {
+    if (stored === null) {
       setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
       return;
     }
@@ -47,7 +59,7 @@ export function useConversation(restaurantId?: number): UseConversationResult {
 
     fetchConversationMessages(stored)
       .then(msgs => {
-        if (cancelled) return;
+        if (cancelled || !isMountedRef.current) return;
         if (msgs === null) {
           clearConversationId(restaurantId);
           setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
@@ -56,7 +68,7 @@ export function useConversation(restaurantId?: number): UseConversationResult {
         }
       })
       .catch(() => {
-        if (cancelled) return;
+        if (cancelled || !isMountedRef.current) return;
         clearConversationId(restaurantId);
         setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
       });
@@ -75,14 +87,15 @@ export function useConversation(restaurantId?: number): UseConversationResult {
   }, [restaurantId]);
 
   const resumePreviousThread = useCallback(() => {
-    const prevId = state.previousConversationId;
+    const prevId = previousConversationIdRef.current;
     if (prevId == null) return;
 
-    saveConversationId(prevId, restaurantId);
     setState(prev => ({ ...prev, isLoading: true, previousConversationId: null }));
 
     fetchConversationMessages(prevId)
       .then(msgs => {
+        if (!isMountedRef.current) return;
+        saveConversationId(prevId, restaurantId);
         setState({
           conversationId: prevId,
           previousConversationId: null,
@@ -91,10 +104,11 @@ export function useConversation(restaurantId?: number): UseConversationResult {
         });
       })
       .catch(() => {
+        if (!isMountedRef.current) return;
         clearConversationId(restaurantId);
         setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
       });
-  }, [state.previousConversationId, restaurantId]);
+  }, [restaurantId]);
 
   const onConversationCreated = useCallback((id: number) => {
     saveConversationId(id, restaurantId);
