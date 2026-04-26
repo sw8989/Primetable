@@ -42,10 +42,12 @@ export function useConversation(restaurantId?: number): UseConversationResult {
       return;
     }
 
+    let cancelled = false;
     setState(prev => ({ ...prev, isLoading: true }));
 
     fetchConversationMessages(stored)
       .then(msgs => {
+        if (cancelled) return;
         if (msgs === null) {
           clearConversationId(restaurantId);
           setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
@@ -54,9 +56,12 @@ export function useConversation(restaurantId?: number): UseConversationResult {
         }
       })
       .catch(() => {
+        if (cancelled) return;
         clearConversationId(restaurantId);
         setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
       });
+
+    return () => { cancelled = true; };
   }, [restaurantId]);
 
   const startNewThread = useCallback(() => {
@@ -70,28 +75,26 @@ export function useConversation(restaurantId?: number): UseConversationResult {
   }, [restaurantId]);
 
   const resumePreviousThread = useCallback(() => {
-    setState(prev => {
-      if (prev.previousConversationId == null) return prev;
-      const prevId = prev.previousConversationId;
-      saveConversationId(prevId, restaurantId);
+    const prevId = state.previousConversationId;
+    if (prevId == null) return;
 
-      fetchConversationMessages(prevId)
-        .then(msgs => {
-          setState({
-            conversationId: prevId,
-            previousConversationId: null,
-            preloadedMessages: msgs ?? [],
-            isLoading: false,
-          });
-        })
-        .catch(() => {
-          clearConversationId(restaurantId);
-          setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
+    saveConversationId(prevId, restaurantId);
+    setState(prev => ({ ...prev, isLoading: true, previousConversationId: null }));
+
+    fetchConversationMessages(prevId)
+      .then(msgs => {
+        setState({
+          conversationId: prevId,
+          previousConversationId: null,
+          preloadedMessages: msgs ?? [],
+          isLoading: false,
         });
-
-      return { ...prev, previousConversationId: null, isLoading: true };
-    });
-  }, [restaurantId]);
+      })
+      .catch(() => {
+        clearConversationId(restaurantId);
+        setState({ conversationId: null, previousConversationId: null, preloadedMessages: [], isLoading: false });
+      });
+  }, [state.previousConversationId, restaurantId]);
 
   const onConversationCreated = useCallback((id: number) => {
     saveConversationId(id, restaurantId);
