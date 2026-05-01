@@ -1,0 +1,74 @@
+<h2>Where should the New / Resume controls live?</h2>
+<p class="subtitle">The chat header currently has the "Prime Table Assistant" title and avatar. Pick a placement.</p>
+
+<div class="cards">
+
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px">
+      <div style="display:flex;align-items:center;justify-content:space-between;background:#1a1a1a;border-radius:6px;padding:10px 14px;border:1px solid #333">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white">PT</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff">Prime Table Assistant</div>
+            <div style="font-size:11px;color:#888">AI-powered booking assistant</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:6px">
+          <button style="font-size:11px;padding:4px 10px;border-radius:4px;background:#2a2a2a;border:1px solid #444;color:#ccc;cursor:pointer">+ New</button>
+          <button style="font-size:11px;padding:4px 10px;border-radius:4px;background:#2a2a2a;border:1px solid #444;color:#ccc;cursor:pointer">↩ Resume</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A — Header right side</h3>
+      <p>Buttons sit in the existing card header alongside the avatar. Minimal layout change.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px">
+      <div style="background:#1a1a1a;border-radius:6px;border:1px solid #333;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid #2a2a2a">
+          <div style="width:32px;height:32px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white">PT</div>
+          <div>
+            <div style="font-size:14px;font-weight:600;color:#fff">Prime Table Assistant</div>
+            <div style="font-size:11px;color:#888">Conversation from yesterday · 3 messages</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:0;border-bottom:1px solid #2a2a2a">
+          <button style="flex:1;font-size:11px;padding:6px;background:#222;border:none;border-right:1px solid #333;color:#aaa;cursor:pointer">+ New conversation</button>
+          <button style="flex:1;font-size:11px;padding:6px;background:#222;border:none;color:#7c3aed;cursor:pointer;font-weight:600">↩ Resume last</button>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B — Sub-header tab bar</h3>
+      <p>A slim bar below the title with context ("3 messages from yesterday") and two full-width actions.</p>
+    </div>
+  </div>
+
+  <div class="card" data-choice="c" onclick="toggleSelect(this)">
+    <div class="card-image" style="padding:16px;background:#0f0f0f;border-radius:8px">
+      <div style="background:#1a1a1a;border-radius:6px;border:1px solid #333;overflow:hidden">
+        <div style="display:flex;align-items:center;gap:10px;padding:10px 14px">
+          <div style="width:32px;height:32px;border-radius:50%;background:#7c3aed;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:700;color:white">PT</div>
+          <div style="flex:1">
+            <div style="font-size:14px;font-weight:600;color:#fff">Prime Table Assistant</div>
+            <div style="font-size:11px;color:#888">AI-powered booking assistant</div>
+          </div>
+        </div>
+        <div style="padding:0 14px 12px">
+          <div style="background:#111;border:1px solid #333;border-radius:6px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between">
+            <span style="font-size:12px;color:#888">↩ Continuing from yesterday (3 messages)</span>
+            <button style="font-size:11px;padding:3px 8px;border-radius:4px;background:transparent;border:1px solid #444;color:#aaa;cursor:pointer">+ New</button>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>C — Resume banner</h3>
+      <p>A dismissible banner below the header shows when a prior thread exists. "New" is the only button; dismiss = resume.</p>
+    </div>
+  </div>
+
+</div>

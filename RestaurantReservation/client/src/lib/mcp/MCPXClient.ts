@@ -191,6 +191,9 @@ export class MCPXClient {
   private tools: MCPXTool[] = [];
   private restaurants: Restaurant[] = [];
   private simulationMode: boolean = false;
+  private conversationId?: number;
+  private restaurantId?: number;
+  private userId?: number;
   
   /**
    * Initialize the MCPX client
@@ -323,28 +326,30 @@ export class MCPXClient {
    */
   private async generateResponse(): Promise<MCPXMessage> {
     try {
-      // Prepare request payload
       const payload = {
         messages: compactMessagesForChat(this.messages),
-        tools: this.tools.length > 0 ? this.tools : undefined
+        tools: this.tools.length > 0 ? this.tools : undefined,
+        conversationId: this.conversationId,
+        restaurantId: this.restaurantId,
+        userId: this.userId,
       };
-      
-      // Call the server-side endpoint
+
       const response = await fetch('/api/chat', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(payload)
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
       });
-      
+
       if (!response.ok) {
         throw new Error(`AI service error: ${response.status}`);
       }
-      
+
       const result = await response.json();
-      
-      // Extract and return the assistant message
+
+      if (result.conversationId != null) {
+        this.conversationId = result.conversationId;
+      }
+
       return result.message;
     } catch (error) {
       console.error('Error generating AI response:', error);
@@ -523,18 +528,38 @@ export class MCPXClient {
    * Reset the conversation
    */
   reset(): void {
+    // Clear conversation and restaurant context
+    this.conversationId = undefined;
+    this.restaurantId = undefined;
+    this.userId = undefined;
+
     // Keep the system message if it exists
     const systemMessage = this.messages.find(msg => msg.role === 'system');
-    
+
     this.messages = systemMessage ? [systemMessage] : [];
-    
+
     // Add welcome message
     this.messages.push({
       role: 'assistant',
       content: "Hello! I'm your restaurant booking assistant for London's most exclusive restaurants. How can I help you today? I can help you find restaurants, check availability, and make bookings."
     });
   }
-  
+
+  setContext(opts: { conversationId?: number; restaurantId?: number; userId?: number }): void {
+    if (opts.conversationId != null) this.conversationId = opts.conversationId;
+    if (opts.restaurantId != null) this.restaurantId = opts.restaurantId;
+    if (opts.userId != null) this.userId = opts.userId;
+  }
+
+  getConversationId(): number | undefined {
+    return this.conversationId;
+  }
+
+  loadHistory(msgs: MCPXMessage[]): void {
+    const systemMessage = this.messages.find(msg => msg.role === 'system');
+    this.messages = systemMessage ? [systemMessage, ...msgs] : [...msgs];
+  }
+
   /**
    * Test function to verify format conversion between legacy and MCPX
    * This can be used to ensure our normalization works correctly

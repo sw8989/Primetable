@@ -7,31 +7,30 @@
  */
 
 import { useState, useEffect, useRef } from 'react';
-import { 
-  MessageSquare, 
-  User, 
-  Send, 
-  Bot, 
+import {
+  Send,
   Loader2,
   Search,
   Calendar,
   Clock,
-  Users,
-  MapPin,
-  Utensils,
   Wrench,
   Globe,
-  Database
+  Database,
+  RotateCcw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { MCPXClient, MCPXMessage } from '@/lib/mcp/MCPXClient';
 import type { Restaurant } from '@shared/schema';
 import { useBooking } from '@/hooks/useBooking';
+import { useConversation } from '@/hooks/useConversation';
+import { createConversation } from '@/lib/conversationStorage';
+import { useToast } from '@/hooks/use-toast';
+
+// Placeholder user ID for API interactions
+const PLACEHOLDER_USER_ID = 1;
 
 // Mapping of tool names to icons for visual representation
 const TOOL_ICONS: Record<string, React.ReactNode> = {
@@ -64,15 +63,17 @@ const getMessageStyle = (role: string) => {
 interface MCPXChatInterfaceProps {
   restaurants: Restaurant[];
   initialSystemPrompt?: string;
+  restaurantId?: number;
 }
 
 /**
  * MCPX Chat Interface component
  * Provides a chat interface for the AI booking assistant using MCP standard
  */
-const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({ 
+const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
   restaurants,
-  initialSystemPrompt
+  initialSystemPrompt,
+  restaurantId,
 }) => {
   const [mcpxClient, setMcpxClient] = useState<MCPXClient | null>(null);
   const [messages, setMessages] = useState<MCPXMessage[]>([]);
@@ -80,24 +81,40 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const { openBookingModal } = useBooking();
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  
+
+  const { toast } = useToast();
+
+  const {
+    conversationId,
+    hasPreviousThread,
+    preloadedMessages,
+    isLoading: conversationLoading,
+    startNewThread,
+    resumePreviousThread,
+    onConversationCreated,
+  } = useConversation(restaurantId);
+
   // Initialize the MCPX client with restaurants
   useEffect(() => {
-    if (restaurants.length > 0 && !mcpxClient) {
-      console.log('Initializing MCPX client with', restaurants.length, 'restaurants');
-      
-      const client = new MCPXClient({
-        restaurants,
-        initialSystemPrompt: initialSystemPrompt || undefined
-      });
-      
-      // Test the format conversion between legacy and MCPX formats
-      client.testFormatConversion();
-      
-      setMcpxClient(client);
+    if (restaurants.length === 0 || conversationLoading) return;
+    if (mcpxClient) return;
+
+    const client = new MCPXClient({
+      restaurants,
+      initialSystemPrompt: initialSystemPrompt || undefined,
+    });
+    client.testFormatConversion();
+    client.setContext({ conversationId: conversationId ?? undefined, restaurantId, userId: PLACEHOLDER_USER_ID });
+
+    if (preloadedMessages.length > 0) {
+      client.loadHistory(preloadedMessages);
+      setMessages(preloadedMessages);
+    } else {
       setMessages(client.getMessages());
     }
-  }, [restaurants, initialSystemPrompt, mcpxClient]);
+
+    setMcpxClient(client);
+  }, [restaurants, initialSystemPrompt, mcpxClient, conversationId, conversationLoading, preloadedMessages, restaurantId]);
   
   // Scroll to bottom when messages change
   useEffect(() => {
@@ -109,24 +126,34 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
   // Handle sending a message
   const handleSendMessage = async () => {
     if (!inputValue.trim() || !mcpxClient || isProcessing) return;
-    
+
     setIsProcessing(true);
     const userMessage = inputValue;
     setInputValue('');
-    
+
     try {
-      // Process the user message
+      let activeConversationId = conversationId;
+      if (activeConversationId == null) {
+        try {
+          activeConversationId = await createConversation(PLACEHOLDER_USER_ID, restaurantId);
+          onConversationCreated(activeConversationId);
+          mcpxClient.setContext({ conversationId: activeConversationId });
+        } catch {
+          toast({
+            title: 'Could not save conversation',
+            description: 'Your message will still be sent, but history may not be saved.',
+            variant: 'destructive',
+          });
+        }
+      }
+
       const updatedMessages = await mcpxClient.processMessage(userMessage);
       setMessages(updatedMessages);
     } catch (error) {
       console.error('Error processing message:', error);
-      // Add error message
       setMessages(prev => [
         ...prev,
-        {
-          role: 'assistant',
-          content: 'I encountered an error while processing your request. Please try again.'
-        }
+        { role: 'assistant', content: 'I encountered an error while processing your request. Please try again.' },
       ]);
     } finally {
       setIsProcessing(false);
@@ -196,24 +223,60 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
     return TOOL_ICONS.default;
   };
   
-  // Reset the conversation
-  const handleReset = () => {
-    if (mcpxClient) {
-      mcpxClient.reset();
-      setMessages(mcpxClient.getMessages());
-    }
+  const handleNew = () => {
+    startNewThread();
+    setMcpxClient(null);
+  };
+
+  const handleResume = () => {
+    resumePreviousThread();
+    setMessages([]);
+    setMcpxClient(null);
   };
   
+  if (conversationLoading) {
+    return (
+      <Card className="flex flex-col h-[600px] max-h-[80vh] items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </Card>
+    );
+  }
+
   return (
     <Card className="flex flex-col h-[600px] max-h-[80vh]">
       <CardHeader className="px-4 py-3 border-b">
-        <div className="flex items-center">
-          <Avatar className="h-8 w-8 mr-2">
-            <AvatarFallback className="bg-primary text-primary-foreground">PT</AvatarFallback>
-          </Avatar>
-          <div>
-            <CardTitle className="text-lg">Prime Table Assistant</CardTitle>
-            <CardDescription className="text-xs">AI-powered booking assistant</CardDescription>
+        <div className="flex items-center justify-between">
+          <div className="flex items-center">
+            <Avatar className="h-8 w-8 mr-2">
+              <AvatarFallback className="bg-primary text-primary-foreground">PT</AvatarFallback>
+            </Avatar>
+            <div>
+              <CardTitle className="text-lg">Prime Table Assistant</CardTitle>
+              <CardDescription className="text-xs">AI-powered booking assistant</CardDescription>
+            </div>
+          </div>
+          <div className="flex gap-2">
+            {hasPreviousThread && (
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={handleResume}
+                disabled={isProcessing}
+                className="text-xs h-7 px-2"
+              >
+                <RotateCcw className="h-3 w-3 mr-1" />
+                Resume
+              </Button>
+            )}
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleNew}
+              disabled={isProcessing}
+              className="text-xs h-7 px-2"
+            >
+              + New
+            </Button>
           </div>
         </div>
       </CardHeader>
@@ -358,22 +421,6 @@ const MCPXChatInterface: React.FC<MCPXChatInterfaceProps> = ({
             }}
             className="flex-1"
           />
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={handleReset}
-                  disabled={isProcessing}
-                >
-                  <MessageSquare className="h-5 w-5" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>New conversation</TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-          
           <Button
             type="submit"
             disabled={!inputValue.trim() || isProcessing}

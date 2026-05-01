@@ -127,6 +127,30 @@ export const insertFavoriteSchema = createInsertSchema(favorites).pick({
   restaurantId: true,
 });
 
+// Conversation message type
+export const ConversationMessageSchema = z.object({
+  role: z.enum(["user", "assistant", "tool"]),
+  content: z.string(),
+  tool_calls: z.any().optional(),
+  tool_call_id: z.string().optional(),
+  function_name: z.string().optional(),
+});
+export type ConversationMessage = z.infer<typeof ConversationMessageSchema>;
+
+// Conversations schema
+export const conversations = pgTable("conversations", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  restaurantId: integer("restaurant_id"),
+  messages: jsonb("messages").$type<ConversationMessage[]>().default([]),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertConversationSchema = createInsertSchema(conversations)
+  .pick({ userId: true, restaurantId: true, messages: true })
+  .extend({ messages: z.array(ConversationMessageSchema).default([]) });
+
 // Types
 export type User = typeof users.$inferSelect;
 export type InsertUser = z.infer<typeof insertUserSchema>;
@@ -136,6 +160,8 @@ export type Booking = typeof bookings.$inferSelect;
 export type InsertBooking = z.infer<typeof insertBookingSchema>;
 export type Favorite = typeof favorites.$inferSelect;
 export type InsertFavorite = z.infer<typeof insertFavoriteSchema>;
+export type Conversation = typeof conversations.$inferSelect;
+export type InsertConversation = z.infer<typeof insertConversationSchema>;
 
 // Extended schemas for validation
 export const bookingFormSchema = insertBookingSchema.extend({

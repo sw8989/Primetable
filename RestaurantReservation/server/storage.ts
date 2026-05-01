@@ -2,7 +2,8 @@ import {
   users, User, InsertUser,
   restaurants, Restaurant, InsertRestaurant,
   bookings, Booking, InsertBooking,
-  favorites, Favorite, InsertFavorite
+  favorites, Favorite, InsertFavorite,
+  conversations, Conversation, InsertConversation, ConversationMessage,
 } from "@shared/schema";
 import { db } from "./db";
 import { eq, or, sql, inArray, and } from "drizzle-orm";
@@ -39,7 +40,13 @@ export interface IStorage {
   getFavoritesWithRestaurantByUser(userId: number): Promise<Array<Favorite & { restaurant: Restaurant | null }>>;
   createFavorite(favorite: InsertFavorite): Promise<Favorite>;
   removeFavorite(id: number): Promise<boolean>;
-  
+
+  // Conversation operations
+  getConversation(id: number): Promise<Conversation | undefined>;
+  getConversationsByUser(userId: number): Promise<Conversation[]>;
+  createConversation(conversation: InsertConversation): Promise<Conversation>;
+  appendConversationMessage(id: number, message: ConversationMessage): Promise<Conversation | undefined>;
+
   // Search operations
   searchRestaurants(query: string): Promise<Restaurant[]>;
   filterRestaurants(filters: Partial<{
@@ -54,21 +61,25 @@ export class MemStorage implements IStorage {
   private restaurants: Map<number, Restaurant>;
   private bookings: Map<number, Booking>;
   private favorites: Map<number, Favorite>;
+  private conversations: Map<number, Conversation>;
   private currentUserId: number;
   private currentRestaurantId: number;
   private currentBookingId: number;
   private currentFavoriteId: number;
+  private currentConversationId: number;
 
   constructor() {
     this.users = new Map();
     this.restaurants = new Map();
     this.bookings = new Map();
     this.favorites = new Map();
+    this.conversations = new Map();
     this.currentUserId = 1;
     this.currentRestaurantId = 1;
     this.currentBookingId = 1;
     this.currentFavoriteId = 1;
-    
+    this.currentConversationId = 1;
+
     // Initialize with sample exclusive London restaurants
     this.initializeRestaurants();
   }
@@ -235,7 +246,45 @@ export class MemStorage implements IStorage {
   async removeFavorite(id: number): Promise<boolean> {
     return this.favorites.delete(id);
   }
-  
+
+  // Conversation methods
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    return this.conversations.get(id);
+  }
+
+  async getConversationsByUser(userId: number): Promise<Conversation[]> {
+    return Array.from(this.conversations.values()).filter(
+      (c) => c.userId === userId
+    );
+  }
+
+  async createConversation(data: InsertConversation): Promise<Conversation> {
+    const id = this.currentConversationId++;
+    const now = new Date();
+    const conv: Conversation = {
+      id,
+      userId: data.userId,
+      restaurantId: data.restaurantId ?? null,
+      messages: data.messages ?? [],
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.conversations.set(id, conv);
+    return conv;
+  }
+
+  async appendConversationMessage(id: number, message: ConversationMessage): Promise<Conversation | undefined> {
+    const conv = this.conversations.get(id);
+    if (!conv) return undefined;
+    const updated: Conversation = {
+      ...conv,
+      messages: [...(conv.messages ?? []), message],
+      updatedAt: new Date(),
+    };
+    this.conversations.set(id, updated);
+    return updated;
+  }
+
   // Search methods
   async searchRestaurants(query: string): Promise<Restaurant[]> {
     if (!query) return this.getRestaurants();
@@ -597,31 +646,31 @@ export class DatabaseStorage implements IStorage {
   }>): Promise<Restaurant[]> {
     try {
       let conditions = [];
-      
+
       if (filters.cuisine && filters.cuisine.length > 0) {
         conditions.push(
-          or(...filters.cuisine.map(cuisine => 
+          or(...filters.cuisine.map(cuisine =>
             sql`LOWER(${restaurants.cuisine}) LIKE LOWER(${'%' + cuisine + '%'})`
           ))
         );
       }
-      
+
       if (filters.location && filters.location.length > 0) {
         conditions.push(
-          or(...filters.location.map(location => 
+          or(...filters.location.map(location =>
             sql`LOWER(${restaurants.location}) LIKE LOWER(${'%' + location + '%'})`
           ))
         );
       }
-      
+
       if (filters.difficulty && filters.difficulty.length > 0) {
         conditions.push(inArray(restaurants.bookingDifficulty, filters.difficulty));
       }
-      
+
       if (conditions.length === 0) {
         return this.getRestaurants();
       }
-      
+
       return await db
         .select()
         .from(restaurants)
@@ -629,6 +678,53 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error("Error filtering restaurants:", error);
       return [];
+    }
+  }
+
+  // Conversation methods
+  async getConversation(id: number): Promise<Conversation | undefined> {
+    try {
+      const [conv] = await db.select().from(conversations).where(eq(conversations.id, id));
+      return conv;
+    } catch (error) {
+      console.error("Error getting conversation:", error);
+      return undefined;
+    }
+  }
+
+  async getConversationsByUser(userId: number): Promise<Conversation[]> {
+    try {
+      return await db.select().from(conversations).where(eq(conversations.userId, userId));
+    } catch (error) {
+      console.error("Error getting conversations by user:", error);
+      return [];
+    }
+  }
+
+  async createConversation(data: InsertConversation): Promise<Conversation> {
+    try {
+      const [conv] = await db.insert(conversations).values(data).returning();
+      return conv;
+    } catch (error) {
+      console.error("Error creating conversation:", error);
+      throw error;
+    }
+  }
+
+  async appendConversationMessage(id: number, message: ConversationMessage): Promise<Conversation | undefined> {
+    try {
+      const conv = await this.getConversation(id);
+      if (!conv) return undefined;
+      const newMessages = [...(conv.messages ?? []), message];
+      const [updated] = await db
+        .update(conversations)
+        .set({ messages: newMessages, updatedAt: new Date() })
+        .where(eq(conversations.id, id))
+        .returning();
+      return updated;
+    } catch (error) {
+      console.error("Error appending conversation message:", error);
+      return undefined;
     }
   }
 }

@@ -393,7 +393,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AI Chatbot test endpoint
   app.post("/api/chat", async (req: Request, res: Response) => {
     try {
-      const { message, restaurantId, messages, tools } = req.body;
+      const { message, restaurantId, messages, tools, conversationId, userId } = req.body;
       
       if (!message && !messages) {
         return res.status(400).json({ 
@@ -447,8 +447,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (service) {
           if (isMcpxRequest && service.processMcpChat) {
             // Use MCP protocol with message history
-            console.log('Using MCP chat protocol with message history', { 
-              service: service.name || 'unknown',
+            console.log('Using MCP chat protocol with message history', {
+              service: aiService.name || 'unknown',
               messageCount: messages.length,
               hasTools: hasTools,
               toolCount: hasTools ? tools.length : 0,
@@ -456,8 +456,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             });
             
             // Process the chat with the MCP protocol
-            const mcpResponse = await service.processMcpChat(messages, context, restaurant, tools);
-            
+            const mcpResponse = await service.processMcpChat(messages, context, restaurant, userId ? Number(userId) : undefined);
+
             // Log response for debugging (shortened to avoid cluttering logs)
             if (typeof mcpResponse === 'object') {
               const logResponse = { ...mcpResponse };
@@ -466,14 +466,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
               console.log('MCP response:', JSON.stringify(logResponse));
             }
-            
-            // Return the MCPX-formatted response
-            return res.json({ 
-              message: mcpResponse 
+
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                const userContent = message ?? (Array.isArray(messages) ? messages.findLast((m: any) => m.role === "user")?.content : undefined);
+                if (userContent) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "user",
+                    content: userContent,
+                  });
+                }
+                if (mcpResponse.content) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "assistant",
+                    content: mcpResponse.content,
+                  });
+                }
+              }
+            }
+            return res.json({
+              message: mcpResponse,
+              conversationId: conversationId ?? null,
             });
           } else if (service.processChat) {
             // Fallback to standard chat interface
-            console.log('Using standard chat interface with service:', service.name || 'unknown');
+            console.log('Using standard chat interface with service:', aiService.name || 'unknown');
             const response = await service.processChat(message, context);
             
             // Format as an MCPX message for compatibility
@@ -482,54 +500,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
               content: response
             };
             
-            return res.json({ 
-              message: formattedResponse 
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                if (message) {
+                  await storage.appendConversationMessage(parsedConvId.data, {
+                    role: "user",
+                    content: message,
+                  });
+                }
+                await storage.appendConversationMessage(parsedConvId.data, {
+                  role: "assistant",
+                  content: formattedResponse.content,
+                });
+              }
+            }
+            return res.json({
+              message: formattedResponse,
+              conversationId: conversationId ?? null,
             });
           } else {
             console.log('No chat processing available');
-            return res.json({ 
-              message: {
-                role: 'assistant',
-                content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+            const fallbackMsg = {
+              role: 'assistant',
+              content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+            };
+            if (conversationId) {
+              const parsedConvId = positiveIntSchema.safeParse(conversationId);
+              if (parsedConvId.success) {
+                if (message) {
+                  await storage.appendConversationMessage(parsedConvId.data, { role: "user", content: message });
+                }
+                await storage.appendConversationMessage(parsedConvId.data, { role: "assistant", content: fallbackMsg.content });
               }
+            }
+            return res.json({
+              message: fallbackMsg,
+              conversationId: conversationId ?? null,
             });
           }
         } else {
           console.log('Falling back to simulation mode - no AI service available');
-          return res.json({ 
-            message: {
-              role: 'assistant',
-              content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+          const fallbackMsg = {
+            role: 'assistant',
+            content: "I'm the Prime Table booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?"
+          };
+          if (conversationId) {
+            const parsedConvId = positiveIntSchema.safeParse(conversationId);
+            if (parsedConvId.success) {
+              if (message) {
+                await storage.appendConversationMessage(parsedConvId.data, { role: "user", content: message });
+              }
+              await storage.appendConversationMessage(parsedConvId.data, { role: "assistant", content: fallbackMsg.content });
             }
+          }
+          return res.json({
+            message: fallbackMsg,
+            conversationId: conversationId ?? null,
           });
         }
       } catch (aiError) {
         console.error("AI service error:", aiError);
-        
+
         // Check for quota/rate limit errors
         const openAIError = aiError as any;
         if (
-          openAIError.status === 429 || 
+          openAIError.status === 429 ||
           (openAIError.error && openAIError.error.code === 'insufficient_quota')
         ) {
-          return res.json({ 
+          return res.json({
             message: {
               role: 'assistant',
               content: "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance."
-            }
+            },
+            conversationId: conversationId ?? null,
           });
         } else {
-          return res.json({ 
+          return res.json({
             message: {
               role: 'assistant',
               content: "I encountered an issue processing your request. Please try again later."
-            }
+            },
+            conversationId: conversationId ?? null,
           });
         }
       }
     } catch (error) {
       console.error("Chat error:", error);
-      res.status(500).json({ 
+      res.status(500).json({
         error: "Error processing chat request",
         message: {
           role: 'assistant',
@@ -547,12 +605,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const bookingTools = getBookingTools();
       
       // Get AI service tools
-      const service = aiService.getService();
       let aiTools: any[] = [];
-      
-      if (service && service.getMcpTools) {
-        aiTools = await service.getMcpTools();
-      }
+      aiTools = await aiService.getMcpTools();
       
       // Combine all tools
       const allTools = [...bookingTools, ...aiTools];
@@ -1332,6 +1386,60 @@ export async function registerRoutes(app: Express): Promise<Server> {
         success: false, 
         error: `Booking automation failed: ${errorMessage}` 
       });
+    }
+  });
+
+  // Conversation thread routes
+  app.post("/api/conversations", async (req: Request, res: Response) => {
+    try {
+      const { userId, restaurantId } = req.body;
+      const parsedUserId = positiveIntSchema.safeParse(userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "userId is required and must be a positive integer" });
+      }
+      let parsedRestaurantId: number | null = null;
+      if (restaurantId != null) {
+        const result = positiveIntSchema.safeParse(restaurantId);
+        if (!result.success) {
+          return res.status(400).json({ message: "restaurantId must be a positive integer" });
+        }
+        parsedRestaurantId = result.data;
+      }
+      const conv = await storage.createConversation({
+        userId: parsedUserId.data,
+        restaurantId: parsedRestaurantId,
+        messages: [],
+      });
+      return res.status(201).json(conv);
+    } catch (error) {
+      res.status(500).json({ message: "Error creating conversation" });
+    }
+  });
+
+  app.get("/api/conversations/user/:userId", async (req: Request, res: Response) => {
+    try {
+      const parsedUserId = positiveIntSchema.safeParse(req.params.userId);
+      if (!parsedUserId.success) {
+        return res.status(400).json({ message: "Invalid user id" });
+      }
+      const convs = await storage.getConversationsByUser(parsedUserId.data);
+      return res.json(convs);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching conversations" });
+    }
+  });
+
+  app.get("/api/conversations/:id", async (req: Request, res: Response) => {
+    try {
+      const parsedId = positiveIntSchema.safeParse(req.params.id);
+      if (!parsedId.success) {
+        return res.status(400).json({ message: "Invalid conversation id" });
+      }
+      const conv = await storage.getConversation(parsedId.data);
+      if (!conv) return res.status(404).json({ message: "Conversation not found" });
+      return res.json(conv);
+    } catch (error) {
+      res.status(500).json({ message: "Error fetching conversation" });
     }
   });
 

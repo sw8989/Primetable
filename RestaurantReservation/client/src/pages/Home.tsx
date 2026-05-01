@@ -63,8 +63,8 @@ const Home = () => {
           <div className="space-y-10">
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               <div className="lg:col-span-2">
-                <MCPXChatInterface 
-                  restaurants={restaurants} 
+                <MCPXChatInterface
+                  restaurants={restaurants}
                   initialSystemPrompt="You are the Prime Table AI booking assistant for London's most exclusive restaurants. Help users find and book restaurants that match their preferences. Always be helpful, concise, and focused on booking assistance.
 
 You have access to several powerful tools that you should use to assist users:

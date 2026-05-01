@@ -1,0 +1,4 @@
+{"type":"server-started","port":55397,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:55397","screen_dir":"/Users/stanislasweinberger/.superset/worktrees/PrimeTable/Stanislas-Weinberger/llm-integration/RestaurantReservation/.superpowers/brainstorm/19911-1777209451/content","state_dir":"/Users/stanislasweinberger/.superset/worktrees/PrimeTable/Stanislas-Weinberger/llm-integration/RestaurantReservation/.superpowers/brainstorm/19911-1777209451/state"}
+{"type":"screen-added","file":"/Users/stanislasweinberger/.superset/worktrees/PrimeTable/Stanislas-Weinberger/llm-integration/RestaurantReservation/.superpowers/brainstorm/19911-1777209451/content/history-visibility.html"}
+{"type":"screen-added","file":"/Users/stanislasweinberger/.superset/worktrees/PrimeTable/Stanislas-Weinberger/llm-integration/RestaurantReservation/.superpowers/brainstorm/19911-1777209451/content/controls-placement.html"}
+{"type":"server-stopped","reason":"idle timeout"}
