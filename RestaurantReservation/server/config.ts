@@ -28,12 +28,11 @@ export const config = {
   // Database configuration (handled separately by DATABASE_URL env var)
 
   // API Keys (stored here for convenient access, but prefer env variables)
-  SMITHERY_API_KEY: process.env.SMITHERY_API_KEY || "",
   SERPER_API_KEY: process.env.SERPER_API_KEY || "", // Added for Serper web search integration
   FIRECRAWL_API_KEY: process.env.FIRECRAWL_API_KEY || "", // Added for FireCrawl web search integration
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
-  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
+  KIMI_API_KEY: process.env.KIMI_API_KEY || "",
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   INTEGRATION_PROXY_TOKEN: process.env.INTEGRATION_PROXY_TOKEN || "",
 
@@ -44,29 +43,16 @@ export const config = {
 
     // AI services
     ai: {
-      // AI features enabled if any AI provider is available
       enabled: !!(
         process.env.OPENAI_API_KEY ||
         process.env.ANTHROPIC_API_KEY ||
-        process.env.DEEPSEEK_API_KEY ||
-        process.env.SMITHERY_API_KEY
+        process.env.KIMI_API_KEY
       ),
-
-      // Provider preferences - prioritize OpenAI for direct API access
-      preferredProvider: process.env.OPENAI_API_KEY
-        ? "openai"
-        : process.env.ANTHROPIC_API_KEY
-          ? "anthropic"
-          : process.env.DEEPSEEK_API_KEY
-            ? "deepseek"
-            : "smithery",
-
-      // Provider availability
+      preferredProvider: process.env.PREFERRED_PROVIDER ?? "",
       providers: {
-        smithery: !!process.env.SMITHERY_API_KEY,
         openai: !!process.env.OPENAI_API_KEY,
         anthropic: !!process.env.ANTHROPIC_API_KEY,
-        deepseek: !!process.env.DEEPSEEK_API_KEY,
+        kimi: !!process.env.KIMI_API_KEY,
       },
     },
   },
