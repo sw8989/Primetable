@@ -5,7 +5,7 @@ vi.mock("../../server/services/ai/bookingTools", () => ({
 import {
   summarizeMcpMessagesForLog,
   summarizeTextForLog,
-} from "../../server/services/openaiService";
+} from "../../server/services/providers/openai";
 
 describe("openaiService logging summaries", () => {
   it("truncates large log content previews", () => {
