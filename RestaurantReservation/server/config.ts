@@ -33,7 +33,9 @@ export const config = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
   KIMI_API_KEY: process.env.KIMI_API_KEY || "",
+  KIMI_MODEL: process.env.KIMI_MODEL || "moonshot-v1-8k",
   DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
+  DEEPSEEK_MODEL: process.env.DEEPSEEK_MODEL || "deepseek-chat",
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   INTEGRATION_PROXY_TOKEN: process.env.INTEGRATION_PROXY_TOKEN || "",
 

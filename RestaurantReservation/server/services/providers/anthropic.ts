@@ -234,6 +234,7 @@ export class AnthropicAdapter implements ProviderAdapter {
   }
 
   async getMcpTools(): Promise<any[]> {
+    console.warn("AnthropicAdapter: tool use is not supported. Set PREFERRED_PROVIDER to openai, kimi, or deepseek for full tool support.");
     return [];
   }
 }

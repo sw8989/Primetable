@@ -1,7 +1,7 @@
 import OpenAI from "openai";
 import type { ProviderAdapter, ChatMessage, McpResponse } from "./types";
 import { getMcpToolDefinitions } from "./mcpTools";
-import { summarizeMcpMessagesForLog, summarizeTextForLog } from "./openai";
+import { runOpenAICompatibleMcpChat } from "./openaiCompatible";
 
 export class KimiAdapter implements ProviderAdapter {
   readonly name = "kimi";
@@ -116,10 +116,10 @@ export class KimiAdapter implements ProviderAdapter {
             content: `For a booking at ${restaurantName} on ${dateStr} at ${preferredTime} for ${partySize} people,
                    suggest 3 alternative times or dates that might have better availability.
                    Consider typical restaurant booking patterns, weekend vs weekday differences,
-                   and optimal times for securing reservations at popular restaurants.`,
+                   and optimal times for securing reservations at popular restaurants.
+                   Return ONLY a JSON array of objects with "suggestions" and "reasoning" keys.`,
           },
         ],
-        response_format: { type: "json_object" },
         max_tokens: 300,
       });
 
@@ -237,198 +237,19 @@ export class KimiAdapter implements ProviderAdapter {
     restaurant?: any,
     userId?: number,
   ): Promise<McpResponse> {
-    if (!this.client) {
-      return {
-        role: "assistant",
-        content:
-          "I'm a restaurant booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?",
-      };
-    }
-
+    if (!this.client) return { role: "assistant", content: "I'm a restaurant booking assistant. How can I assist you today?" };
     try {
-      const openaiMessages: any[] = [];
-
-      openaiMessages.push({
-        role: "system",
-        content: context,
-      });
-
-      for (const msg of messages) {
-        if (msg.role === "user") {
-          openaiMessages.push({
-            role: "user",
-            content: msg.content,
-          });
-        } else if (msg.role === "assistant" && !msg.tool_calls) {
-          openaiMessages.push({
-            role: "assistant",
-            content: msg.content || "",
-          });
-        } else if (
-          msg.role === "assistant" &&
-          msg.tool_calls &&
-          msg.tool_calls.length > 0
-        ) {
-          const toolCallsMessage: any = {
-            role: "assistant",
-            content: msg.content || "",
-            tool_calls: msg.tool_calls.map((toolCall: any, index: number) => {
-              return {
-                id: toolCall.id || `call_${Date.now()}_${index}`,
-                type: "function",
-                function: {
-                  name: toolCall.function?.name || "unknown",
-                  arguments: toolCall.function?.arguments || "{}",
-                },
-              };
-            }),
-          };
-          openaiMessages.push(toolCallsMessage);
-        } else if (msg.role === "tool") {
-          const toolMessage: any = {
-            role: "tool",
-            tool_call_id: msg.tool_call_id,
-            content: msg.content,
-            name: msg.function_name,
-          };
-
-          console.log("Adding formatted tool message:", {
-            tool_call_id: toolMessage.tool_call_id,
-            name: toolMessage.name,
-            content_preview:
-              typeof toolMessage.content === "string"
-                ? summarizeTextForLog(toolMessage.content, 80)
-                : "non-string content",
-          });
-
-          openaiMessages.push(toolMessage);
-        }
-      }
-
-      console.log(
-        "Kimi messages prepared for API call:",
-        summarizeMcpMessagesForLog(openaiMessages),
-      );
-
-      const tools = await getMcpToolDefinitions();
-
-      const openaiTools = tools.map((tool) => {
-        if (typeof tool.type === "string") {
-          return {
-            type: "function",
-            function: {
-              name: tool.function.name,
-              description: tool.function.description,
-              parameters: tool.function.parameters,
-            },
-          };
-        }
-        return tool;
-      }) as any;
-
-      const response = await this.client.chat.completions.create({
-        model: this.model,
-        messages: openaiMessages,
-        tools: openaiTools as any,
-        tool_choice: "auto",
-        max_tokens: 800,
-        temperature: 0.7,
-      });
-
-      const responseMessage = response.choices[0].message;
-
-      console.log("Kimi response format:", {
-        has_content: !!responseMessage.content,
-        has_tool_calls: !!responseMessage.tool_calls,
-        tool_calls_count: responseMessage.tool_calls?.length || 0,
-        first_tool_call:
-          responseMessage.tool_calls && responseMessage.tool_calls.length > 0
-            ? {
-                id: responseMessage.tool_calls[0].id,
-                type: responseMessage.tool_calls[0].type,
-                function_name: responseMessage.tool_calls[0].function?.name,
-              }
-            : null,
-      });
-
-      const mcpResponse: McpResponse = {
-        role: "assistant",
-        content: responseMessage.content || "",
-      };
-
-      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-        mcpResponse.tool_calls = responseMessage.tool_calls;
-
-        const firstTool = responseMessage.tool_calls[0];
-        if (firstTool && firstTool.function) {
-          try {
-            const args = JSON.parse(firstTool.function.arguments);
-            const toolName = firstTool.function.name;
-
-            if (
-              toolName === "makeReservation" ||
-              toolName === "findAvailability" ||
-              toolName === "getRestaurantInfo"
-            ) {
-              if (toolName === "makeReservation" && !args.userId && userId) {
-                args.userId = userId;
-              }
-            }
-
-            (mcpResponse as any).tool = toolName;
-            (mcpResponse as any).parameters = args;
-          } catch (error) {
-            console.error("Error parsing tool call arguments:", error);
-            (mcpResponse as any).tool = firstTool.function.name;
-            (mcpResponse as any).parameters = {};
-          }
-        }
-      }
-
-      return mcpResponse;
+      return await runOpenAICompatibleMcpChat(this.client, this.model, "Kimi", messages, context, userId);
     } catch (error) {
       console.error("Error processing MCP chat:", error);
-
-      const kimiError = error as any;
-      if (
-        kimiError.status === 429 ||
-        (kimiError.error && kimiError.error.code === "insufficient_quota")
-      ) {
-        return {
-          role: "assistant",
-          content:
-            "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance.",
-        };
+      const err = error as any;
+      if (err.status === 429 || (err.error && err.error.code === "insufficient_quota")) {
+        return { role: "assistant", content: "I apologize, but our AI service has reached its usage limit for now." };
       }
-
-      let errorDetail = "";
-      if (kimiError.status) {
-        errorDetail += `Status: ${kimiError.status}. `;
-      }
-      if (kimiError.code) {
-        errorDetail += `Code: ${kimiError.code}. `;
-      }
-      if (kimiError.param) {
-        errorDetail += `Parameter: ${kimiError.param}. `;
-      }
-      if (kimiError.error && kimiError.error.message) {
-        errorDetail += `Message: ${kimiError.error.message}`;
-      } else if (kimiError.message) {
-        errorDetail += `Message: ${kimiError.message}`;
-      }
-
       if (process.env.NODE_ENV === "development") {
-        return {
-          role: "assistant",
-          content: `Error in MCPX processing: ${errorDetail}`,
-        };
+        return { role: "assistant", content: `Error in Kimi MCPX processing: ${err.message || "unknown error"}` };
       }
-
-      return {
-        role: "assistant",
-        content:
-          "I apologize, but I encountered an error while processing your request. Please try again later.",
-      };
+      return { role: "assistant", content: "I apologize, but I encountered an error while processing your request. Please try again later." };
     }
   }
 

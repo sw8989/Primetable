@@ -1,6 +1,7 @@
 import OpenAI from "openai";
 import type { ProviderAdapter, ChatMessage, McpResponse } from "./types";
 import { getMcpToolDefinitions } from "./mcpTools";
+import { runOpenAICompatibleMcpChat } from "./openaiCompatible";
 
 const LOG_PREVIEW_CHARS = 160;
 
@@ -268,231 +269,19 @@ export class OpenAIAdapter implements ProviderAdapter {
     restaurant?: any,
     userId?: number,
   ): Promise<McpResponse> {
-    if (!this.client) {
-      return {
-        role: "assistant",
-        content:
-          "I'm a restaurant booking assistant. I can help you find restaurants and make bookings at London's most exclusive venues. How can I assist you today?",
-      };
-    }
-
+    if (!this.client) return { role: "assistant", content: "I'm a restaurant booking assistant. How can I assist you today?" };
     try {
-      // Map the MCP message format to OpenAI format - extremely simplified
-      // We're starting fresh with just essential messages to avoid validation errors
-      const openaiMessages: any[] = [];
-
-      // Always add system message first
-      openaiMessages.push({
-        role: "system",
-        content: context,
-      });
-
-      // We'll only include user and simple assistant messages - no tools at all
-      // This will make the API conversation work but without tool interactions
-      for (const msg of messages) {
-        if (msg.role === "user") {
-          // User messages are straightforward
-          openaiMessages.push({
-            role: "user",
-            content: msg.content,
-          });
-        } else if (msg.role === "assistant" && !msg.tool_calls) {
-          // Only include simple assistant responses without tool calls
-          openaiMessages.push({
-            role: "assistant",
-            content: msg.content || "",
-          });
-        } else if (
-          msg.role === "assistant" &&
-          msg.tool_calls &&
-          msg.tool_calls.length > 0
-        ) {
-          // Handle assistant messages with tool calls
-          const toolCallsMessage: any = {
-            role: "assistant",
-            content: msg.content || "",
-            tool_calls: msg.tool_calls.map((toolCall: any, index: number) => {
-              // Ensure each tool call has the required format for OpenAI
-              return {
-                id: toolCall.id || `call_${Date.now()}_${index}`,
-                type: "function",
-                function: {
-                  name: toolCall.function?.name || "unknown",
-                  arguments: toolCall.function?.arguments || "{}",
-                },
-              };
-            }),
-          };
-          openaiMessages.push(toolCallsMessage);
-        }
-        // Handle tool response messages correctly
-        else if (msg.role === "tool") {
-          // Tool messages require special handling
-          // They must include 'name' instead of function_name for OpenAI API compatibility
-          const toolMessage: any = {
-            role: "tool",
-            tool_call_id: msg.tool_call_id,
-            content: msg.content,
-            name: msg.function_name, // This is what was missing - OpenAI requires 'name', not 'function_name'
-          };
-
-          // Log for debugging
-          console.log("Adding formatted tool message:", {
-            tool_call_id: toolMessage.tool_call_id,
-            name: toolMessage.name,
-            content_preview:
-              typeof toolMessage.content === "string"
-                ? summarizeTextForLog(toolMessage.content, 80)
-                : "non-string content",
-          });
-
-          openaiMessages.push(toolMessage);
-        }
-      }
-
-      // Log all messages for debugging purposes, including tool messages
-      // which are crucial for diagnosing our "missing_required_parameter" error
-      console.log(
-        "OpenAI messages prepared for API call:",
-        summarizeMcpMessagesForLog(openaiMessages),
-      );
-
-      // Get tools from the shared mcpTools module
-      const tools = await getMcpToolDefinitions();
-
-      // Make the OpenAI API call with tools
-      // Ensure tools match OpenAI's expected format by using a type assertion
-      // This is safe since we know our tools follow the required structure
-      const openaiTools = tools.map((tool) => {
-        if (typeof tool.type === "string") {
-          // Force correct type for OpenAI tools
-          return {
-            type: "function",
-            function: {
-              name: tool.function.name,
-              description: tool.function.description,
-              parameters: tool.function.parameters,
-            },
-          };
-        }
-        return tool;
-      }) as any;
-
-      // Type assertion for OpenAI's strict typing requirements
-      const response = await this.client.chat.completions.create({
-        model: "gpt-4o",
-        messages: openaiMessages,
-        tools: openaiTools as any, // Use type assertion to avoid strict typing issues
-        tool_choice: "auto",
-        max_tokens: 800,
-        temperature: 0.7,
-      });
-
-      const responseMessage = response.choices[0].message;
-
-      // Debug log the OpenAI response structure
-      console.log("OpenAI response format:", {
-        has_content: !!responseMessage.content,
-        has_tool_calls: !!responseMessage.tool_calls,
-        tool_calls_count: responseMessage.tool_calls?.length || 0,
-        first_tool_call:
-          responseMessage.tool_calls && responseMessage.tool_calls.length > 0
-            ? {
-                id: responseMessage.tool_calls[0].id,
-                type: responseMessage.tool_calls[0].type,
-                function_name: responseMessage.tool_calls[0].function?.name,
-              }
-            : null,
-      });
-
-      // Convert OpenAI format back to MCP format
-      const mcpResponse: McpResponse = {
-        role: "assistant",
-        content: responseMessage.content || "",
-      };
-
-      // If the response includes tool calls, keep the original MCPX format
-      if (responseMessage.tool_calls && responseMessage.tool_calls.length > 0) {
-        // Preserve the original MCPX tool_calls format but also add legacy format for backward compatibility
-        mcpResponse.tool_calls = responseMessage.tool_calls;
-
-        // Also add legacy format properties for backward compatibility
-        const firstTool = responseMessage.tool_calls[0];
-        if (firstTool && firstTool.function) {
-          try {
-            const args = JSON.parse(firstTool.function.arguments);
-            const toolName = firstTool.function.name;
-
-            // Handle booking tool calls
-            if (
-              toolName === "makeReservation" ||
-              toolName === "findAvailability" ||
-              toolName === "getRestaurantInfo"
-            ) {
-              // Make sure userId is included for booking operations
-              if (toolName === "makeReservation" && !args.userId && userId) {
-                args.userId = userId;
-              }
-            }
-
-            // Add legacy format properties (using any type to avoid TypeScript errors)
-            (mcpResponse as any).tool = toolName;
-            (mcpResponse as any).parameters = args;
-          } catch (error) {
-            console.error("Error parsing tool call arguments:", error);
-            (mcpResponse as any).tool = firstTool.function.name;
-            (mcpResponse as any).parameters = {};
-          }
-        }
-      }
-
-      return mcpResponse;
+      return await runOpenAICompatibleMcpChat(this.client, "gpt-4o", "OpenAI", messages, context, userId);
     } catch (error) {
       console.error("Error processing MCP chat:", error);
-
-      // Check for quota/rate limit errors
-      const openAIError = error as any;
-      if (
-        openAIError.status === 429 ||
-        (openAIError.error && openAIError.error.code === "insufficient_quota")
-      ) {
-        return {
-          role: "assistant",
-          content:
-            "I apologize, but our AI service has reached its usage limit for now. I can still help you with basic restaurant information and booking guidance.",
-        };
+      const err = error as any;
+      if (err.status === 429 || (err.error && err.error.code === "insufficient_quota")) {
+        return { role: "assistant", content: "I apologize, but our AI service has reached its usage limit for now." };
       }
-
-      // Extract detailed error information for debugging
-      let errorDetail = "";
-      if (openAIError.status) {
-        errorDetail += `Status: ${openAIError.status}. `;
-      }
-      if (openAIError.code) {
-        errorDetail += `Code: ${openAIError.code}. `;
-      }
-      if (openAIError.param) {
-        errorDetail += `Parameter: ${openAIError.param}. `;
-      }
-      if (openAIError.error && openAIError.error.message) {
-        errorDetail += `Message: ${openAIError.error.message}`;
-      } else if (openAIError.message) {
-        errorDetail += `Message: ${openAIError.message}`;
-      }
-
-      // In development mode, expose error details in the response
       if (process.env.NODE_ENV === "development") {
-        return {
-          role: "assistant",
-          content: `Error in MCPX processing: ${errorDetail}`,
-        };
+        return { role: "assistant", content: `Error in OpenAI MCPX processing: ${err.message || "unknown error"}` };
       }
-
-      return {
-        role: "assistant",
-        content:
-          "I apologize, but I encountered an error while processing your request. Please try again later.",
-      };
+      return { role: "assistant", content: "I apologize, but I encountered an error while processing your request. Please try again later." };
     }
   }
 
