@@ -21,6 +21,7 @@ export class KimiAdapter implements ProviderAdapter {
           apiKey: process.env.KIMI_API_KEY,
           baseURL: "https://api.moonshot.cn/v1",
         });
+        console.log("Kimi API initialized successfully.");
       } catch (error) {
         console.error("Failed to initialize Kimi client:", error);
       }

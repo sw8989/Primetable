@@ -21,6 +21,7 @@ export class DeepSeekAdapter implements ProviderAdapter {
           apiKey: process.env.DEEPSEEK_API_KEY,
           baseURL: "https://api.deepseek.com/v1",
         });
+        console.log("DeepSeek API initialized successfully.");
       } catch (error) {
         console.error("Failed to initialize DeepSeek client:", error);
       }

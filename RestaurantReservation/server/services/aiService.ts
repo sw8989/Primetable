@@ -26,6 +26,15 @@ type McpResponse = {
 };
 
 class AiService {
+  constructor() {
+    const provider = registry.getProvider();
+    if (provider) {
+      console.log(`AI service initialized. Active provider: ${provider.name}`);
+    } else {
+      console.warn("No AI providers available. AI features will be disabled.");
+    }
+  }
+
   isAvailable(): boolean {
     return registry.getProvider() !== null;
   }
