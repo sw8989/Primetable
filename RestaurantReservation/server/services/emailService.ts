@@ -1,6 +1,6 @@
 import { MailService } from '@sendgrid/mail';
 import { Restaurant } from '@shared/schema';
-import openaiService from './openaiService';
+import openaiService from './aiService';
 
 // Check if the API key is available
 if (!process.env.SENDGRID_API_KEY) {

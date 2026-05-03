@@ -1,5 +1,5 @@
 import { storage } from '../storage';
-import openaiService from './openaiService';
+import openaiService from './aiService';
 import emailService from './emailService';
 
 /**
