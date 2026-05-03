@@ -33,6 +33,7 @@ export const config = {
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   ANTHROPIC_API_KEY: process.env.ANTHROPIC_API_KEY || "",
   KIMI_API_KEY: process.env.KIMI_API_KEY || "",
+  DEEPSEEK_API_KEY: process.env.DEEPSEEK_API_KEY || "",
   SENDGRID_API_KEY: process.env.SENDGRID_API_KEY || "",
   INTEGRATION_PROXY_TOKEN: process.env.INTEGRATION_PROXY_TOKEN || "",
 
@@ -46,13 +47,15 @@ export const config = {
       enabled: !!(
         process.env.OPENAI_API_KEY ||
         process.env.ANTHROPIC_API_KEY ||
-        process.env.KIMI_API_KEY
+        process.env.KIMI_API_KEY ||
+        process.env.DEEPSEEK_API_KEY
       ),
       preferredProvider: process.env.PREFERRED_PROVIDER ?? "",
       providers: {
         openai: !!process.env.OPENAI_API_KEY,
         anthropic: !!process.env.ANTHROPIC_API_KEY,
         kimi: !!process.env.KIMI_API_KEY,
+        deepseek: !!process.env.DEEPSEEK_API_KEY,
       },
     },
   },

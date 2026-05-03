@@ -3,10 +3,12 @@ import { registry } from "./providers/registry";
 import { anthropicAdapter } from "./providers/anthropic";
 import { openAIAdapter } from "./providers/openai";
 import { kimiAdapter } from "./providers/kimi";
+import { deepSeekAdapter } from "./providers/deepseek";
 
 registry.register(anthropicAdapter);
 registry.register(openAIAdapter);
 registry.register(kimiAdapter);
+registry.register(deepSeekAdapter);
 
 type ChatMessage = {
   role: string;
