@@ -65,7 +65,7 @@ export async function runOpenAICompatibleMcpChat(
     if (firstTool?.function) {
       try {
         const args = JSON.parse(firstTool.function.arguments);
-        if (firstTool.function.name === "makeReservation" && !args.userId && userId) args.userId = userId;
+        if ((firstTool.function.name === "makeReservation" || firstTool.function.name === "book_restaurant") && !args.userId && userId) args.userId = userId;
         (mcpResponse as any).tool = firstTool.function.name;
         (mcpResponse as any).parameters = args;
       } catch {

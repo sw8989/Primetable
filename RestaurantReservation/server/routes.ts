@@ -83,6 +83,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
   
+  // Save encrypted platform credentials for a user
+  // Body: { userId, platform: "resy"|"opentable"|"sevenrooms"|"tock", email, password }
+  app.post("/api/user/credentials", async (req: Request, res: Response) => {
+    try {
+      const { userId, platform, email, password } = req.body;
+      if (!userId || !platform || !email || !password) {
+        return res.status(400).json({ message: "userId, platform, email, and password are required" });
+      }
+      const allowed = ["resy", "opentable", "sevenrooms", "tock"];
+      if (!allowed.includes(platform)) {
+        return res.status(400).json({ message: `platform must be one of: ${allowed.join(", ")}` });
+      }
+
+      const { encrypt } = await import('./encryption');
+      const encryptedPassword = encrypt(password);
+
+      const user = await storage.getUser(Number(userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const prefs: any = (user.preferences as any) || {};
+      prefs.bookingCredentials = prefs.bookingCredentials || {};
+      prefs.bookingCredentials[platform] = { email, encryptedPassword };
+
+      await storage.updateUser(Number(userId), { preferences: prefs });
+      res.json({ success: true, platform, email });
+    } catch (error: any) {
+      console.error("Error saving credentials:", error);
+      res.status(500).json({ message: error.message || "Failed to save credentials" });
+    }
+  });
+
+  // Remove stored credentials for a platform
+  app.delete("/api/user/credentials/:platform", async (req: Request, res: Response) => {
+    try {
+      const { userId } = req.body;
+      const { platform } = req.params;
+      if (!userId) return res.status(400).json({ message: "userId is required" });
+
+      const user = await storage.getUser(Number(userId));
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const prefs: any = (user.preferences as any) || {};
+      if (prefs.bookingCredentials) {
+        delete prefs.bookingCredentials[platform];
+      }
+
+      await storage.updateUser(Number(userId), { preferences: prefs });
+      res.json({ success: true, platform });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to remove credentials" });
+    }
+  });
+
+  // Get which platforms have credentials stored (no passwords returned)
+  app.get("/api/user/:userId/credentials", async (req: Request, res: Response) => {
+    try {
+      const parsedId = positiveIntSchema.safeParse(req.params.userId);
+      if (!parsedId.success) return res.status(400).json({ message: "Invalid userId" });
+
+      const user = await storage.getUser(parsedId.data);
+      if (!user) return res.status(404).json({ message: "User not found" });
+
+      const prefs: any = (user.preferences as any) || {};
+      const creds = prefs.bookingCredentials || {};
+      // Return which platforms are configured, and the email (never the password)
+      const configured = Object.fromEntries(
+        Object.entries(creds).map(([platform, c]: [string, any]) => [platform, { email: c.email, connected: true }])
+      );
+      res.json({ credentials: configured });
+    } catch (error: any) {
+      res.status(500).json({ message: error.message || "Failed to fetch credentials" });
+    }
+  });
+
   // Restaurant routes
   app.get("/api/restaurants", async (_req: Request, res: Response) => {
     try {
@@ -401,11 +475,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Default context for general restaurant booking inquiries
-      let context = "You are a helpful restaurant booking assistant for London's exclusive restaurants, called 'Prime Table'. Provide specific, actionable advice. You have access to several tools that you should use to help users:\n\n1. search_restaurants - Search for restaurants by cuisine, location, or difficulty\n2. check_availability - Check if a restaurant has available reservations for a date and time\n3. book_restaurant - Book a reservation at a restaurant\n4. detect_booking_platform - Identify which booking platform a restaurant uses\n5. web_search - Search the web for restaurant information\n\nUse these tools whenever appropriate to provide the most accurate and helpful information to users.";
+      const today = new Date().toLocaleDateString('en-GB', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+      let context = `You are Prime Table, a concise booking assistant for London's elite restaurants. Today is ${today}. Always call tools before answering. Replies must be 1-2 sentences max. No apologies, no preamble, no lists. When a booking tool fails and returns a bookingUrl, always share that URL with the user so they can complete the booking themselves.`;
       let restaurant = null;
-      
-      // If a restaurant ID is provided, get details to provide a specific context
+
       if (restaurantId) {
         const parsedRestaurantId = positiveIntSchema.safeParse(restaurantId);
         if (!parsedRestaurantId.success) {
@@ -416,23 +489,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         restaurant = await storage.getRestaurant(parsedRestaurantId.data);
         if (restaurant) {
-          context = `You are a restaurant booking specialist focusing on ${restaurant.name}, 
-          a ${restaurant.cuisine} restaurant in ${restaurant.location}. 
-          It has a booking difficulty level of ${restaurant.bookingDifficulty}. 
-          ${restaurant.bookingInfo ? `Specific booking information: ${restaurant.bookingInfo}` : ''}
-          ${restaurant.bookingNotes ? `Additional notes: ${restaurant.bookingNotes}` : ''}
-          ${restaurant.bookingPlatform ? `This restaurant uses ${restaurant.bookingPlatform} for their reservation system.` : ''}
-          
-          The user is asking about this specific restaurant. Provide tailored advice and strategies for securing a booking, 
-          considering the restaurant's specific booking policies and difficulty level.
-          
-          You have access to several tools that you should use to help users:
-          1. check_availability - Check if this restaurant has available reservations for a date and time
-          2. book_restaurant - Book a reservation at this restaurant
-          3. detect_booking_platform - Identify which booking platform this restaurant uses
-          4. web_search - Search the web for more information about this restaurant
-          
-          Always use these tools when appropriate to provide the most accurate and helpful information.`;
+          const parts = [
+            `You are Prime Table. Restaurant: ${restaurant.name} (${restaurant.cuisine}, ${restaurant.location}, difficulty: ${restaurant.bookingDifficulty}).`,
+            restaurant.bookingPlatform ? `Platform: ${restaurant.bookingPlatform}.` : "",
+            restaurant.bookingInfo ? `Booking info: ${restaurant.bookingInfo}.` : "",
+            restaurant.bookingNotes ? `Notes: ${restaurant.bookingNotes}.` : "",
+            "Use tools. Be brief.",
+          ];
+          context = parts.filter(Boolean).join(" ");
         }
       }
       
@@ -608,9 +672,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let aiTools: any[] = [];
       aiTools = await aiService.getMcpTools();
       
-      // Combine all tools
-      const allTools = [...bookingTools, ...aiTools];
-      
+      // Combine and deduplicate by function name (aiTools may repeat booking tools)
+      const seen = new Set<string>();
+      const allTools = [...bookingTools, ...aiTools].filter(t => {
+        const name = t?.function?.name;
+        if (!name || seen.has(name)) return false;
+        seen.add(name);
+        return true;
+      });
+
       res.json({ tools: allTools });
     } catch (error) {
       console.error("Error fetching MCP tools:", error);
@@ -636,10 +706,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       console.log(`Processing MCP tool call: ${toolName}`, toolArgs);
-      
+
+      // Inject userId from session if the tool needs it but args don't have it
+      const sessionUser = (req as any).user || (req.session as any)?.user;
+      if (toolName === 'book_restaurant' && toolArgs && !toolArgs.userId && sessionUser?.id) {
+        toolArgs.userId = sessionUser.id;
+      }
+
       // Handle our new booking tools
-      if (toolName === 'book_restaurant' || 
-          toolName === 'check_availability' || 
+      if (toolName === 'book_restaurant' ||
+          toolName === 'check_availability' ||
+          toolName === 'check_availability_tool' ||
           toolName === 'get_restaurant_info' ||
           toolName === 'find_alternative_restaurants' ||
           toolName === 'detect_booking_platform') {

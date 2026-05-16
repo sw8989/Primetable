@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { Menu } from 'lucide-react';
 import { Sheet, SheetContent, SheetTrigger } from '@/components/ui/sheet';
+import BookingAccountsModal from './BookingAccountsModal';
 
 // Environment check for development mode
 const isDevEnvironment = import.meta.env.DEV;
@@ -9,8 +10,10 @@ const isDevEnvironment = import.meta.env.DEV;
 const Header = () => {
   const [location] = useLocation();
   const [isLoggedIn] = useState(true); // For demo purposes, assume logged in
+  const [accountsOpen, setAccountsOpen] = useState(false);
   
   return (
+    <>
     <header className="bg-dark text-light py-4 px-4">
       <div className="container mx-auto flex justify-between items-center">
         <div className="flex items-center">
@@ -43,7 +46,11 @@ const Header = () => {
           <a href="#" className="hover:text-secondary transition duration-200">Help</a>
           
           {isLoggedIn ? (
-            <div className="w-10 h-10 bg-accent rounded-full flex items-center justify-center cursor-pointer">
+            <div
+              className="w-10 h-10 bg-accent rounded-full flex items-center justify-center cursor-pointer hover:opacity-80 transition"
+              title="Booking accounts"
+              onClick={() => setAccountsOpen(true)}
+            >
               <span className="text-light font-semibold">JD</span>
             </div>
           ) : (
@@ -85,6 +92,8 @@ const Header = () => {
         </Sheet>
       </div>
     </header>
+    <BookingAccountsModal open={accountsOpen} onClose={() => setAccountsOpen(false)} />
+    </>
   );
 };
 

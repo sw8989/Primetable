@@ -620,19 +620,28 @@ export class DatabaseStorage implements IStorage {
       if (!query) {
         return this.getRestaurants();
       }
-      
-      const lowerQuery = `%${query.toLowerCase()}%`;
+
+      // Strip noise words so "Mayfair restaurants London" → ["mayfair"]
+      const NOISE = new Set(['restaurant', 'restaurants', 'london', 'in', 'the', 'a', 'an', 'and', 'or', 'near', 'best', 'top']);
+      const tokens = query.toLowerCase().split(/\s+/).filter(t => t.length > 1 && !NOISE.has(t));
+
+      if (tokens.length === 0) return this.getRestaurants();
+
+      // Every token must match at least one field (AND across tokens, OR across fields per token)
+      const tokenConditions = tokens.map(token => {
+        const like = `%${token}%`;
+        return or(
+          sql`LOWER(${restaurants.name}) LIKE ${like}`,
+          sql`LOWER(${restaurants.cuisine}) LIKE ${like}`,
+          sql`LOWER(${restaurants.location}) LIKE ${like}`,
+          sql`LOWER(${restaurants.description}) LIKE ${like}`,
+        );
+      });
+
       return await db
         .select()
         .from(restaurants)
-        .where(
-          or(
-            sql`LOWER(${restaurants.name}) LIKE ${lowerQuery}`,
-            sql`LOWER(${restaurants.cuisine}) LIKE ${lowerQuery}`,
-            sql`LOWER(${restaurants.location}) LIKE ${lowerQuery}`,
-            sql`LOWER(${restaurants.description}) LIKE ${lowerQuery}`
-          )
-        );
+        .where(and(...tokenConditions));
     } catch (error) {
       console.error("Error searching restaurants:", error);
       return [];

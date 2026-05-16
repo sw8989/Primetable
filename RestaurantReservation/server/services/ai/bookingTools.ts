@@ -8,6 +8,8 @@
 import { storage } from '../../storage';
 import { config } from '../../config';
 import { bookingService } from '../booking';
+import { encrypt, decrypt } from '../../encryption';
+import { resyLogin } from '../booking/resyApiClient';
 
 // Define the JSON schema for booking a restaurant
 export const BookRestaurantToolSchema = {
@@ -37,6 +39,10 @@ export const BookRestaurantToolSchema = {
         specialRequests: {
           type: "string",
           description: "Any special requests for the booking (optional)"
+        },
+        phone: {
+          type: "string",
+          description: "User's phone number for the booking (required by most platforms)"
         },
         userId: {
           type: "integer",
@@ -144,13 +150,17 @@ export const DetectBookingPlatformToolSchema = {
   type: "function",
   function: {
     name: "detect_booking_platform",
-    description: "Detect which booking platform a restaurant uses from its website URL",
+    description: "Detect which booking platform a restaurant uses from its website URL. When restaurant_name is provided and confidence is high, saves the result to the database automatically.",
     parameters: {
       type: "object",
       properties: {
         url: {
           type: "string",
           description: "The restaurant's website URL to analyze"
+        },
+        restaurant_name: {
+          type: "string",
+          description: "Name of the restaurant. When provided, saves high-confidence detections back to the database."
         }
       },
       required: ["url"]
@@ -194,26 +204,51 @@ export const bookingTools = {
         [BookingPlatform.UNKNOWN]: "Unknown Platform"
       };
       
+      const platformName = platformDescriptions[result.platform] || result.platform;
+
+      // Auto-save high-confidence results when restaurant_name is provided
+      if (result.confidence > 0.5 && args.restaurant_name) {
+        try {
+          const restaurant = await storage.getRestaurantByName(args.restaurant_name);
+          if (restaurant) {
+            const { db } = await import('../../db');
+            const { restaurants } = await import('../../../shared/schema');
+            const { eq } = await import('drizzle-orm');
+            await db.update(restaurants).set({
+              bookingPlatform: platformName,
+              websiteUrl: url,
+              platformId: result.platformDetails?.restaurantId || result.platformDetails?.venueId || result.platformDetails?.slug || null,
+              lastScrapedAt: new Date(),
+            }).where(eq(restaurants.id, restaurant.id));
+            console.log(`Saved platform detection for ${args.restaurant_name}: ${platformName}`);
+          }
+        } catch (saveErr) {
+          console.error('Failed to save platform detection to DB:', saveErr);
+        }
+      }
+
       // Prepare response based on detection confidence
       if (result.confidence > 0.5) {
         return {
           success: true,
           url: url,
           platform: result.platform,
-          platformName: platformDescriptions[result.platform] || result.platform,
+          platformName,
           confidence: result.confidence,
           platformDetails: result.platformDetails || null,
-          message: `Detected ${platformDescriptions[result.platform] || result.platform} with ${Math.round(result.confidence * 100)}% confidence.`
+          saved: !!(args.restaurant_name),
+          message: `Detected ${platformName} with ${Math.round(result.confidence * 100)}% confidence.`
         };
       } else if (result.confidence > 0) {
         return {
           success: true,
           url: url,
           platform: result.platform,
-          platformName: platformDescriptions[result.platform] || result.platform,
+          platformName,
           confidence: result.confidence,
           platformDetails: result.platformDetails || null,
-          message: `Low confidence detection of ${platformDescriptions[result.platform] || result.platform} (${Math.round(result.confidence * 100)}%). This is a best guess and may not be accurate.`
+          saved: false,
+          message: `Low confidence detection of ${platformName} (${Math.round(result.confidence * 100)}%). This is a best guess and may not be accurate.`
         };
       } else {
         return {
@@ -262,6 +297,38 @@ export const bookingTools = {
         };
       }
       
+      // Load credentials and resolve a valid Resy auth token (cached or freshly fetched)
+      let platformCredentials;
+      let resyAuthToken: string | undefined;
+      if (args.userId) {
+        try {
+          const user = await storage.getUser(args.userId);
+          const prefs: any = (user?.preferences as any) || {};
+          platformCredentials = prefs.bookingCredentials || undefined;
+
+          const resyCreds = platformCredentials?.resy;
+          if (resyCreds?.encryptedPassword) {
+            const expiry = resyCreds.authTokenExpiry ? new Date(resyCreds.authTokenExpiry) : null;
+            const tokenValid = resyCreds.encryptedAuthToken && expiry && expiry > new Date();
+
+            if (tokenValid) {
+              // Reuse cached token — no password transmission
+              resyAuthToken = decrypt(resyCreds.encryptedAuthToken);
+            } else {
+              // Fetch a fresh token and cache it for ~30 days
+              const { token, paymentMethodId } = await resyLogin(resyCreds.email, resyCreds.encryptedPassword);
+              resyAuthToken = token;
+              prefs.bookingCredentials.resy.encryptedAuthToken = encrypt(token);
+              prefs.bookingCredentials.resy.authTokenExpiry = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString();
+              if (paymentMethodId) prefs.bookingCredentials.resy.paymentMethodId = paymentMethodId;
+              await storage.updateUser(args.userId, { preferences: prefs });
+            }
+          }
+        } catch {
+          // non-fatal — proceed without credentials
+        }
+      }
+
       // Create a booking request
       const bookingRequest = {
         restaurantId: restaurant.id,
@@ -270,8 +337,11 @@ export const bookingTools = {
         time: args.time,
         partySize: args.partySize,
         specialRequests: args.specialRequests,
+        phone: args.phone,
+        platformCredentials,
+        resyAuthToken,
         useRealScraping: config.bookingAgent.useRealScraping,
-        acceptSimilarTimes: true // Allow similar times if exact time not available
+        acceptSimilarTimes: true,
       };
       
       // Attempt to create the booking
@@ -292,6 +362,8 @@ export const bookingTools = {
         return {
           success: false,
           error: result.error || 'Failed to book restaurant',
+          platform: restaurant.bookingPlatform,
+          bookingUrl: result.bookingUrl || restaurant.bookingUrl || restaurant.websiteUrl || null,
           logs: result.logs || []
         };
       }
@@ -319,27 +391,39 @@ export const bookingTools = {
         };
       }
       
-      // In a real implementation, this would use web scraping or API calls
-      // to check actual availability. For now, return simulated results.
-      const availableTimes = ['18:00', '18:30', '21:00', '21:30'];
-      
-      // For simulation, if it's a "hard" restaurant, show fewer slots
-      if (restaurant.bookingDifficulty === 'hard') {
-        return {
-          success: true,
-          restaurant: restaurant.name,
-          date: args.date,
-          availableTimes: availableTimes.slice(2), // Only late times available
-          message: "Limited availability found. This restaurant is very popular and only has late evening slots available."
-        };
+      // Simulated availability — real platform integration not yet built.
+      // Returns a pre-filled booking URL so the user can jump straight to checkout.
+      const allTimes = ['12:00', '12:30', '13:00', '18:00', '18:30', '19:00', '19:30', '20:00', '20:30', '21:00', '21:30'];
+      const hardTimes = ['19:30', '20:00', '21:00', '21:30'];
+
+      const availableTimes = restaurant.bookingDifficulty === 'hard' ? hardTimes : allTimes;
+      const partySize = args.partySize || 2;
+
+      // Build a platform-specific pre-filled URL
+      let bookingUrl: string | null = null;
+      const slug = restaurant.platformId ?? restaurant.name.toLowerCase().replace(/[^a-z0-9]+/g, '-');
+      const platform = (restaurant.bookingPlatform || '').toLowerCase();
+
+      if (platform === 'resy' || platform.includes('resy')) {
+        bookingUrl = `https://resy.com/cities/lon/venues/${slug}?date=${args.date}&seats=${partySize}`;
+      } else if (platform === 'opentable' || platform.includes('opentable')) {
+        bookingUrl = `https://www.opentable.com/r/reservation?rid=${restaurant.platformId || ''}&datetime=${args.date}T19%3A00&covers=${partySize}`;
+      } else {
+        bookingUrl = restaurant.bookingUrl || restaurant.websiteUrl || null;
       }
-      
+
       return {
         success: true,
+        simulated: true,
         restaurant: restaurant.name,
+        platform: restaurant.bookingPlatform,
         date: args.date,
-        availableTimes: availableTimes,
-        message: "Several time slots are available for your requested date."
+        partySize,
+        availableTimes,
+        bookingUrl,
+        message: restaurant.bookingDifficulty === 'hard'
+          ? `Limited availability — book fast on ${restaurant.bookingPlatform}${bookingUrl ? `: ${bookingUrl}` : ''}.`
+          : `Good availability on ${restaurant.bookingPlatform}${bookingUrl ? `. Book at: ${bookingUrl}` : ''}.`,
       };
     } catch (error: any) {
       console.error('Error in check_availability tool:', error);

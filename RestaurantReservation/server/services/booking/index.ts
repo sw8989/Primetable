@@ -87,20 +87,32 @@ export const bookingService = new BookingService();
 // Register platform services
 // This will be done dynamically as services are imported
 
-// Auto-initialize with some standard services
+// DirectService — stub for restaurants with a direct booking URL
+class DirectService implements BookingPlatformService {
+  async bookTable(restaurant: Restaurant, _request: BookingRequest): Promise<BookingResult> {
+    return {
+      success: false,
+      bookingUrl: restaurant.bookingUrl ?? restaurant.websiteUrl ?? undefined,
+      error: 'Direct booking — use the URL',
+      logs: [`[Direct] No automation available for ${restaurant.name}. Use the booking URL directly.`],
+    };
+  }
+}
+
+// Auto-initialize with all supported platform services
 export const initializeBookingServices = async () => {
   try {
     const { OpenTableService } = await import('./opentable');
+    const { ResyService } = await import('./resy');
+    const { SevenRoomsService } = await import('./sevenrooms');
+    const { TockService } = await import('./tock');
+
     bookingService.registerPlatform('OpenTable', new OpenTableService());
-    
-    // Try to load the MCP service if available
-    try {
-      const { OpenTableMCPService } = await import('./openTableMcp');
-      bookingService.registerPlatform('OpenTableMCP', new OpenTableMCPService());
-    } catch (error) {
-      console.log('OpenTable MCP service not available, skipping');
-    }
-    
+    bookingService.registerPlatform('Resy', new ResyService());
+    bookingService.registerPlatform('SevenRooms', new SevenRoomsService());
+    bookingService.registerPlatform('Tock', new TockService());
+    bookingService.registerPlatform('Direct', new DirectService());
+
     // Add more platforms as they become available
     console.log(`Booking service initialized with platforms: ${bookingService.getSupportedPlatforms().join(', ')}`);
   } catch (error) {

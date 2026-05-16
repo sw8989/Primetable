@@ -217,7 +217,7 @@ export class MCPXClient {
     // Add welcome message
     this.messages.push({
       role: 'assistant',
-      content: "Hello! I'm your restaurant booking assistant for London's most exclusive restaurants. How can I help you today? I can help you find restaurants, check availability, and make bookings."
+      content: "How can I help you book a table today?"
     });
     
     // Register tools
@@ -279,45 +279,31 @@ export class MCPXClient {
     console.log('Processing user message:', userMessage);
     console.log('Current conversation history:', this.messages.length, 'messages');
     
-    // Generate assistant response
-    const assistantResponse = await this.generateResponse();
-    console.log('Assistant response:', assistantResponse);
-    this.messages.push(assistantResponse);
-    
-    // Process any tool calls
-    if (assistantResponse.tool_calls && assistantResponse.tool_calls.length > 0) {
-      console.log(`Assistant requested ${assistantResponse.tool_calls.length} tool calls`);
-      
-      // Execute each tool call sequentially
-      for (const toolCall of assistantResponse.tool_calls) {
-        console.log('Processing tool call:', toolCall);
+    // Agentic loop: keep executing tool calls until the assistant responds with plain text
+    const MAX_TOOL_ROUNDS = 8;
+    let rounds = 0;
+
+    let currentResponse = await this.generateResponse();
+    this.messages.push(currentResponse);
+
+    while (currentResponse.tool_calls && currentResponse.tool_calls.length > 0 && rounds < MAX_TOOL_ROUNDS) {
+      rounds++;
+      console.log(`Tool round ${rounds}: ${currentResponse.tool_calls.length} call(s)`);
+
+      for (const toolCall of currentResponse.tool_calls) {
         const toolResult = await this.executeToolCall(toolCall);
-        
-        // Create a properly formatted tool response message for OpenAI
-        // According to OpenAI docs, tool response messages:
-        // 1. Must have role = 'tool'
-        // 2. Must have tool_call_id matching the original tool_call
-        // 3. Must have content with the result string (JSON-stringified result)
-        // 4. Must NOT have tool_calls property or it will confuse OpenAI
-        const toolMessage: MCPXMessage = {
+        this.messages.push({
           role: 'tool',
           content: toolResult.function.content,
           tool_call_id: toolResult.tool_call_id,
-          // Include function_name as a separate property for the server-side API
-          function_name: toolResult.function.name
-        };
-        
-        console.log('Adding tool response to conversation:', toolMessage);
-        this.messages.push(toolMessage);
+          function_name: toolResult.function.name,
+        });
       }
-      
-      // After all tool calls are processed, generate a follow-up response
-      console.log('Generating follow-up response after tool execution');
-      const followUpResponse = await this.generateResponse();
-      console.log('Follow-up response:', followUpResponse);
-      this.messages.push(followUpResponse);
+
+      currentResponse = await this.generateResponse();
+      this.messages.push(currentResponse);
     }
-    
+
     return [...this.messages];
   }
   
@@ -541,7 +527,7 @@ export class MCPXClient {
     // Add welcome message
     this.messages.push({
       role: 'assistant',
-      content: "Hello! I'm your restaurant booking assistant for London's most exclusive restaurants. How can I help you today? I can help you find restaurants, check availability, and make bookings."
+      content: "How can I help you book a table today?"
     });
   }
 
